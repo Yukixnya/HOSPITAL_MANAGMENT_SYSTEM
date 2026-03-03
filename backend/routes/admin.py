@@ -7,6 +7,22 @@ from db import mongo
 
 admin_bp = Blueprint("admin", __name__)
 
+@admin_bp.route("/admin",methods=["GET"])
+@jwt_required()
+@role_required("Admin")
+def stats():
+
+    total = mongo.db.doctors.count_documents({})
+    active = mongo.db.doctors.count_documents({"status": "Active"})
+    inactive = mongo.db.doctors.count_documents({"status": "Inactive"})
+    on_leave = mongo.db.doctors.count_documents({"status": "On Leave"})
+
+    return jsonify({
+        "total_registered": total,
+        "total_active": active,
+        "total_inactive": inactive,
+        "total_onleave": on_leave
+    }), 200
 
 # -----------------------------
 # Add Doctor
@@ -99,6 +115,7 @@ def get_all_doctors():
     total_pages = math.ceil(total / per_page)
 
     # Add pagination
+    pipeline.append({"$sort": {"experience": -1}})
     pipeline.append({"$skip": skip})
     pipeline.append({"$limit": per_page})
 
@@ -154,6 +171,108 @@ def get_one_doctor(doctor_id):
     doctor["user_id"] = str(doctor["user_id"])
 
     return jsonify(doctor)
+
+
+
+from flask import Blueprint, request, jsonify
+from flask_jwt_extended import jwt_required
+from bson import ObjectId
+from utils import role_required
+from db import mongo
+import math
+
+admin_bp = Blueprint("admin", __name__)
+
+
+# --------------------------------------------------
+# Filters
+# --------------------------------------------------
+@admin_bp.route("/admin/doctors", methods=["GET"])
+@jwt_required()
+@role_required("Admin")
+def get_all_doctors():
+
+
+    page = int(request.args.get("page", 1))
+    per_page = 10
+    skip = (page - 1) * per_page
+
+    search = request.args.get("search")
+    status = request.args.get("status")
+    specialization = request.args.get("specialization")
+    min_exp = request.args.get("min_exp")
+
+    match_conditions = []
+
+    # Search Filter
+    if search:
+        match_conditions.append({
+            "$or": [
+                {"user.name": {"$regex": search, "$options": "i"}},
+                {"specialization": {"$regex": search, "$options": "i"}}
+            ]
+        })
+
+    # Status Filter
+    if status:
+        match_conditions.append({"status": status})
+
+    # Specialization Filter
+    if specialization:
+        match_conditions.append({"specialization": specialization})
+
+    # Minimum Experience Filter
+    if min_exp:
+        match_conditions.append({"experience": {"$gte": int(min_exp)}})
+
+    pipeline = [
+        {
+            "$lookup": {
+                "from": "users",
+                "localField": "user_id",
+                "foreignField": "_id",
+                "as": "user"
+            }
+        },
+        {"$unwind": "$user"}
+    ]
+
+    # Apply filters if any
+    if match_conditions:
+        pipeline.append({
+            "$match": {
+                "$and": match_conditions
+            }
+        })
+
+
+    count_pipeline = pipeline.copy()
+    count_pipeline.append({"$count": "total"})
+    count_result = list(mongo.db.doctors.aggregate(count_pipeline))
+
+    total = count_result[0]["total"] if count_result else 0
+    total_pages = math.ceil(total / per_page) if total else 0
+
+
+    pipeline.append({"$sort": {"experience": -1}})
+
+    pipeline.append({"$skip": skip})
+    pipeline.append({"$limit": per_page})
+
+    doctors = list(mongo.db.doctors.aggregate(pipeline))
+
+    for d in doctors:
+        d["_id"] = str(d["_id"])
+        d["user"]["_id"] = str(d["user"]["_id"])
+        d["user_id"] = str(d["user_id"])
+
+    return jsonify({
+        "page": page,
+        "per_page": per_page,
+        "total": total,
+        "total_pages": total_pages,
+        "data": doctors
+    })
 
 
 # -----------------------------
