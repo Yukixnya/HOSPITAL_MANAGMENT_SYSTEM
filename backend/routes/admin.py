@@ -93,6 +93,44 @@ def get_all_doctors():
 
 
 # -----------------------------
+# See One Doctor
+# -----------------------------
+@admin_bp.route("/admin/doctors/<doctor_id>", methods=["GET"])
+@jwt_required()
+@role_required("Admin")
+def get_one_doctor(doctor_id):
+
+    pipeline = [
+        {
+            "$match": {
+                "_id": ObjectId(doctor_id)
+            }
+        },
+        {
+            "$lookup": {
+                "from": "users",
+                "localField": "user_id",
+                "foreignField": "_id",
+                "as": "user"
+            }
+        },
+        {"$unwind": "$user"}
+    ]
+
+    doctor = list(mongo.db.doctors.aggregate(pipeline))
+
+    if not doctor:
+        return jsonify({"error": "Doctor not found"}), 404
+
+    doctor = doctor[0]
+    doctor["_id"] = str(doctor["_id"])
+    doctor["user"]["_id"] = str(doctor["user"]["_id"])
+    doctor["user_id"] = str(doctor["user_id"])
+
+    return jsonify(doctor)
+
+
+# -----------------------------
 # Update Doctor Status
 # -----------------------------
 @admin_bp.route("/admin/doctors/<doctor_id>/status", methods=["PUT"])
