@@ -2,8 +2,8 @@
 import { Analytics } from '@vercel/analytics/vue';
 </script>
 <template>
+  <Analytics />
   <Suspense fallback="Loading...">
-    <Analytics />
     <router-view />
   </Suspense>
 </template>
