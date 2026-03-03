@@ -38,11 +38,11 @@ def add_doctor():
             user_result = mongo.db.users.insert_one(user, session=session)
 
             doctor_profile = {
-                "user_id": user_result.inserted_id,   # ✅ FIXED
+                "user_id": user_result.inserted_id,
                 "specialization": data["specialization"],
                 "experience": data.get("experience", 0),
                 "schedule": data.get("schedule", ""),
-                "status": "Active"  # ✅ Added
+                "status": "Active"
             }
 
             mongo.db.doctors.insert_one(doctor_profile, session=session)
