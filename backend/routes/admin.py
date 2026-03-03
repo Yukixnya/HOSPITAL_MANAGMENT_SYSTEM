@@ -53,12 +53,27 @@ def add_doctor():
 # -----------------------------
 # Get All Doctors
 # -----------------------------
+import math
+
 @admin_bp.route("/admin/doctors", methods=["GET"])
 @jwt_required()
 @role_required("Admin")
 def get_all_doctors():
 
+    page = int(request.args.get("page", 1))
+    per_page = 10
+    skip = (page - 1) * per_page
     search = request.args.get("search")
+
+    match_stage = {}
+
+    if search:
+        match_stage = {
+            "$or": [
+                {"user.name": {"$regex": search, "$options": "i"}},
+                {"specialization": {"$regex": search, "$options": "i"}}
+            ]
+        }
 
     pipeline = [
         {
@@ -73,14 +88,19 @@ def get_all_doctors():
     ]
 
     if search:
-        pipeline.append({
-            "$match": {
-                "$or": [
-                    {"user.name": {"$regex": search, "$options": "i"}},
-                    {"specialization": {"$regex": search, "$options": "i"}}
-                ]
-            }
-        })
+        pipeline.append({"$match": match_stage})
+
+    # Count total documents (for pagination info)
+    count_pipeline = pipeline.copy()
+    count_pipeline.append({"$count": "total"})
+    count_result = list(mongo.db.doctors.aggregate(count_pipeline))
+
+    total = count_result[0]["total"] if count_result else 0
+    total_pages = math.ceil(total / per_page)
+
+    # Add pagination
+    pipeline.append({"$skip": skip})
+    pipeline.append({"$limit": per_page})
 
     doctors = list(mongo.db.doctors.aggregate(pipeline))
 
@@ -89,7 +109,13 @@ def get_all_doctors():
         d["user"]["_id"] = str(d["user"]["_id"])
         d["user_id"] = str(d["user_id"])
 
-    return jsonify(doctors)
+    return jsonify({
+        "page": page,
+        "per_page": per_page,
+        "total": total,
+        "total_pages": total_pages,
+        "data": doctors
+    })
 
 
 # -----------------------------
