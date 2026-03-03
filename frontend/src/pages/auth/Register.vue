@@ -111,7 +111,7 @@
             </form>
 
             <p class="text-center mt-8 text-sm font-medium text-slate-500">
-                Already have an account? <a href="#" class="text-blue-600 font-bold">Sign in here</a>
+                Already have an account? <router-link to="/auth" class="text-blue-600 font-bold">Sign in here</router-link>
             </p>
         </div>
     </div>

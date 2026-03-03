@@ -23,12 +23,12 @@
                 </div>
 
                 <div class="flex items-center gap-4">
-                    <a href="/auth/login">
+                    <router-link to="/auth">
                         <button
                             class="px-6 py-2.5 cursor-pointer bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-all shadow-sm active:scale-95">
                             Get Started
                         </button>
-                    </a>
+                    </router-link>
                 </div>
             </nav>
         </div>
@@ -52,12 +52,12 @@
                 </p>
 
                 <div class="flex flex-wrap gap-4 pt-2">
-                    <a href="/auth/login">
+                    <router-link to="/auth">
                         <button
                             class="px-8 py-4 cursor-pointer bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95">
                             Book Appointment
                         </button>
-                    </a>
+                    </router-link>
                     <button
                         class="px-8 py-4 cursor-pointer bg-white text-slate-900 font-bold border border-slate-200 rounded-xl hover:bg-slate-50 transition-all shadow-sm">
                         Watch Demo
@@ -259,6 +259,7 @@ import {
     UserCircleIcon,
     ShareIcon, GlobeAltIcon, AtSymbolIcon
 } from '@heroicons/vue/24/outline'
+
 
 const stats = [
     {
