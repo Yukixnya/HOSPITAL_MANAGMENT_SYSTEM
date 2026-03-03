@@ -6,7 +6,8 @@ import {
   Users, 
   CalendarDays, 
   Settings, 
-  LogOut 
+  LogOut, 
+  TimerReset
 } from 'lucide-vue-next';
 import { useRouter } from 'vue-router';
 import { computed} from 'vue';
@@ -34,8 +35,14 @@ const DoctorMenuItems = [
   { name: 'Appointments', icon: CalendarDays, link: '/doctor/appointments' }
 ];
 
+const PatientMenuItems = [
+  { name: 'Dashboard', icon: LayoutGrid, link: '/patient' },
+  { name: 'MyDoctors', icon: Users, link: '/patient/doctors' },
+  { name: 'Appointments', icon: CalendarDays, link: '/patient/my-appointments' },
+  { name: "Medical History", icon: TimerReset, link: '/patient/medical-history' }
+]
+
 const footerItems = [
-  { name: 'Settings', icon: Settings },
   { name: 'Logout', icon: LogOut, variant: 'danger' },
 ];
 </script>
@@ -56,9 +63,9 @@ const footerItems = [
 
     <nav class="flex-1 space-y-1">
     <!-- Menu Items -->
-     <template v-if="currentPath === 'admin' ? AdminMenuItems : DoctorMenuItems">
+     <template v-if="currentPath === 'admin' ? AdminMenuItems : currentPath === 'doctor' ? DoctorMenuItems : PatientMenuItems">
        <button
-        v-for="item in currentPath === 'admin' ? AdminMenuItems : DoctorMenuItems"
+        v-for="item in currentPath === 'admin' ? AdminMenuItems : currentPath === 'doctor' ? DoctorMenuItems : PatientMenuItems"
         :key="item.name"
         @click="activeItem = item.name; $router.push(item.link)"
         :class="[
