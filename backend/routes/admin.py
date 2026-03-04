@@ -16,12 +16,16 @@ def stats():
     active = mongo.db.doctors.count_documents({"status": "Active"})
     inactive = mongo.db.doctors.count_documents({"status": "Inactive"})
     on_leave = mongo.db.doctors.count_documents({"status": "On Leave"})
+    patients = mongo.db.patients.count_documents({})
+    appointments = mongo.db.appointments.count_documents({})
 
     return jsonify({
-        "total_registered": total,
-        "total_active": active,
-        "total_inactive": inactive,
-        "total_onleave": on_leave
+        "total_doctors": total,
+        "total_active_doctors": active,
+        "total_inactive_doctors": inactive,
+        "total_onleave_doctors": on_leave,
+        "totsl_patients": patients,
+        "total_appointments": appointments
     }), 200
 
 # -----------------------------
@@ -109,33 +113,23 @@ def get_all_doctors():
     if search:
         match_stage = {
             "$or": [
-                {"user.name": {"$regex": search, "$options": "i"}},
+                {"name": {"$regex": search, "$options": "i"}},
                 {"specialization": {"$regex": search, "$options": "i"}}
             ]
         }
 
-    pipeline = [
-        {
-            "$lookup": {
-                "from": "users",
-                "localField": "user_id",
-                "foreignField": "_id",
-                "as": "user"
-            }
-        },
-        {"$unwind": "$user"}
-    ]
+    pipeline = []
 
     if search:
         pipeline.append({"$match": match_stage})
 
-    # Count total documents (for pagination info)
+    # Count total documents
     count_pipeline = pipeline.copy()
     count_pipeline.append({"$count": "total"})
     count_result = list(mongo.db.doctors.aggregate(count_pipeline))
 
     total = count_result[0]["total"] if count_result else 0
-    total_pages = math.ceil(total / per_page)
+    total_pages = math.ceil(total / per_page) if total else 0
 
     # Add pagination
     pipeline.append({"$sort": {"experience": -1}})
@@ -146,8 +140,6 @@ def get_all_doctors():
 
     for d in doctors:
         d["_id"] = str(d["_id"])
-        d["user"]["_id"] = str(d["user"]["_id"])
-        d["user_id"] = str(d["user_id"])
 
     return jsonify({
         "page": page,
@@ -166,41 +158,20 @@ def get_all_doctors():
 @role_required("Admin")
 def get_one_doctor(doctor_id):
 
-    pipeline = [
-        {
-            "$match": {
-                "_id": ObjectId(doctor_id)
-            }
-        },
-        {
-            "$lookup": {
-                "from": "users",
-                "localField": "user_id",
-                "foreignField": "_id",
-                "as": "user"
-            }
-        },
-        {"$unwind": "$user"}
-    ]
-
-    doctor = list(mongo.db.doctors.aggregate(pipeline))
+    doctor = mongo.db.doctors.find_one({"_id": ObjectId(doctor_id)})
 
     if not doctor:
         return jsonify({"error": "Doctor not found"}), 404
 
-    doctor = doctor[0]
     doctor["_id"] = str(doctor["_id"])
-    doctor["user"]["_id"] = str(doctor["user"]["_id"])
-    doctor["user_id"] = str(doctor["user_id"])
 
     return jsonify(doctor)
-
 
 
 # --------------------------------------------------
 # Filters
 # --------------------------------------------------
-@admin_bp.route("/admin/doctors", methods=["GET"])
+@admin_bp.route("/admin/doctors-filter", methods=["GET"])
 @jwt_required()
 @role_required("Admin")
 def filter():
@@ -299,12 +270,14 @@ def update_doctor_status(doctor_id):
     data = request.json
     allowed_status = ["Active", "Inactive", "On Leave"]
 
-    if data["status"] not in allowed_status:
+    status = data.get("status")
+
+    if not status or status not in allowed_status:
         return jsonify({"error": "Invalid status"}), 400
 
     mongo.db.doctors.update_one(
         {"_id": ObjectId(doctor_id)},
-        {"$set": {"status": data["status"]}}
+        {"$set": {"status": status}}
     )
 
     return jsonify({"message": "Status updated"})
@@ -320,13 +293,20 @@ def update_doctor(doctor_id):
 
     data = request.json
 
+    update_fields = {}
+
+    if "specialization" in data:
+        update_fields["specialization"] = data["specialization"]
+
+    if "experience" in data:
+        update_fields["experience"] = data["experience"]
+
+    if "schedule" in data:
+        update_fields["schedule"] = data["schedule"]
+
     mongo.db.doctors.update_one(
         {"_id": ObjectId(doctor_id)},
-        {"$set": {
-            "specialization": data.get("specialization"),
-            "experience": data.get("experience"),
-            "schedule": data.get("schedule")
-        }}
+        {"$set": update_fields}
     )
 
     return jsonify({"message": "Doctor updated"})
@@ -340,9 +320,12 @@ def update_doctor(doctor_id):
 @role_required("Admin")
 def delete_doctor(doctor_id):
 
-    mongo.db.doctors.update_one(
+    result = mongo.db.doctors.update_one(
         {"_id": ObjectId(doctor_id)},
         {"$set": {"status": "Inactive"}}
     )
+
+    if result.matched_count == 0:
+        return jsonify({"error": "Doctor not found"}), 404
 
     return jsonify({"message": "Doctor deactivated"})
