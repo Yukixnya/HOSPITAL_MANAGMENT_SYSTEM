@@ -1,0 +1,23 @@
+export const specializations = [
+  "Anesthesiology",
+  "Cardiology",
+  "Dermatology",
+  "Endocrinology",
+  "Nephrology",
+  "Neurology",
+  "Neurosurgery",
+  "Obstetrics and Gynecology",
+  "Oncology",
+  "Ophthalmology",
+  "Orthopedic Surgery",
+  "Otolaryngology (ENT)",
+  "Pathology",
+  "Pediatrics",
+  "Psychiatry",
+  "Pulmonology",
+  "Radiology",
+  "Rheumatology",
+  "Surgery (General)",
+  "Transplant Hepatology",
+  "Urology"
+]

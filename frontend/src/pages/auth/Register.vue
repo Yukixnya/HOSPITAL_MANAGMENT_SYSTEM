@@ -17,7 +17,6 @@ const loading = ref(false)
 
 const formData = ref({
     name: '',
-    role: '',
     gender: '',
     mobile: '',
     email: '',
@@ -48,7 +47,6 @@ const handleSubmit = async () => {
         loading.value = false
         formData.value = {
             name: '',
-            role: '',
             gender: '',
             mobile: '',
             email: '',
@@ -81,35 +79,7 @@ const handleSubmit = async () => {
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div class="space-y-2">
-                        <label class="block text-sm font-bold text-slate-700">Select Role</label>
-
-                        <div class="flex items-center gap-6 px-4">
-
-                            <div class="flex items-center gap-2">
-                                <input v-model="formData.role" type="radio" name="role" id="doctor" value="doctor" />
-                                <label for="doctor" class="text-sm font-bold text-slate-700">
-                                    Doctor
-                                </label>
-                            </div>
-
-                            <div class="flex items-center gap-2">
-                                <input v-model="formData.role" type="radio" name="role" id="patient" value="patient" />
-                                <label for="patient" class="text-sm font-bold text-slate-700">
-                                    Patient
-                                </label>
-                            </div>
-
-                            <div class="flex items-center gap-2">
-                                <input v-model="formData.role" type="radio" name="role" id="admin" value="admin" />
-                                <label for="admin" class="text-sm font-bold text-slate-700">
-                                    Admin
-                                </label>
-                            </div>
-
-                        </div>
-                    </div>
+                <div class="grid grid-cols-1 col-span-2 md:grid-cols-1 gap-6">
                     <div class="space-y-2">
                         <label class="block text-sm font-bold text-slate-700">Gender</label>
                         <select v-model="formData.gender"

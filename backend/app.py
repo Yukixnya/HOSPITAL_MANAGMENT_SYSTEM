@@ -16,7 +16,7 @@ app.config.from_object(Config)
 
 init_db(app)
 
-CORS(app)
+CORS(app, origins=["http://localhost:5173"])
 jwt = JWTManager(app)
 
 # zhi shi register blueprint, khong can url_prefix vi da co trong blueprint roi

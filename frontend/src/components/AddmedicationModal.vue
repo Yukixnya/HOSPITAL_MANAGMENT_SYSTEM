@@ -90,6 +90,7 @@ const handleSubmit = () => {
     emit('close');
 };
 </script>
+
 <template>
     <div v-if="isOpen"
         class="fixed inset-0 z-100 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">

@@ -1,20 +1,68 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted, computed } from 'vue';
+
 import { 
   Stethoscope, User, DollarSign, Calendar, 
   CheckCircle2, AlertTriangle, PlusCircle, 
-  LayoutGrid // Added for consistent icons
 } from 'lucide-vue-next';
 
+import { adminDashboard, dashboardTrends } from '../../services/admin';
 import StatCard from '../../components/StateCard.vue';
 import AppointmentTrendsChart from '../../components/AppointmentTrendsChart.vue';
 
-const stats = [
-    { title: 'Total Doctors', value: '154', trend: '+2.4%', isUp: true, icon: Stethoscope, iconBg: 'bg-blue-50', iconColor: 'text-blue-600' },
-    { title: 'Active Patients', value: '12,840', trend: '+5.1%', isUp: true, icon: User, iconBg: 'bg-indigo-50', iconColor: 'text-indigo-600' },
-    { title: 'Monthly Revenue', value: '$45,200', trend: '+12.8%', isUp: true, icon: DollarSign, iconBg: 'bg-emerald-50', iconColor: 'text-emerald-600' },
-    { title: "Today's Appointments", value: '84', trend: '-3.2%', isUp: false, icon: Calendar, iconBg: 'bg-orange-50', iconColor: 'text-orange-600' },
-];
+const dashboard = ref({
+    "patients": 0,
+    "doctors": 0,
+    "appointments": 0
+})
+
+const getAdminDashboard = async() => {
+    try {
+        const res = await adminDashboard();
+        dashboard.value = {
+            "patients": res.total_patients,
+            "doctors": res.total_doctors,
+            "appointments": res.total_appointments
+        }
+    } catch (error) {
+        console.log("ADMINBOARD: ", error)
+    }
+}
+
+onMounted(() => {
+    getAdminDashboard();
+})
+
+
+const stats = computed(() => [
+  {
+    title: 'Total Doctors',
+    value: dashboard.value.doctors,
+    trend: '+2.4%',
+    isUp: true,
+    icon: Stethoscope,
+    iconBg: 'bg-blue-50',
+    iconColor: 'text-blue-600'
+  },
+  {
+    title: 'Active Patients',
+    value: dashboard.value.patients,
+    trend: '+5.1%',
+    isUp: true,
+    icon: User,
+    iconBg: 'bg-indigo-50',
+    iconColor: 'text-indigo-600'
+  },
+  {
+    title: "Today's Appointments",
+    value: dashboard.value.appointments,
+    trend: '-3.2%',
+    isUp: false,
+    icon: Calendar,
+    iconBg: 'bg-orange-50',
+    iconColor: 'text-orange-600'
+  }
+])
 
 const activity = [
     { id: 1, title: 'New appointment', detail: 'scheduled for John Doe', time: '10 minutes ago', icon: PlusCircle, color: 'text-blue-500', bg: 'bg-blue-50' },
@@ -25,7 +73,7 @@ const activity = [
 
 <template>
     <div class="p-8 bg-slate-50 min-h-screen">
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
             <StatCard v-for="stat in stats" :key="stat.title" v-bind="stat" />
         </div>
 

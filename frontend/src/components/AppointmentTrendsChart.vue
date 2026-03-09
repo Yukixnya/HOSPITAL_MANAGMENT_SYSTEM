@@ -10,7 +10,10 @@ import {
   Filler,
   Legend
 } from 'chart.js';
+import { onMounted, ref, computed } from 'vue';
 import { Line } from 'vue-chartjs';
+import { dashboardTrends } from '../services/admin';
+
 
 ChartJS.register(
   CategoryScale,
@@ -23,44 +26,45 @@ ChartJS.register(
   Legend
 );
 
-// Mock Data from your request
-const props = defineProps({
-  mockData: {
-    type: Array,
-    default: () => [
-      { day: 'Mon', visits: 45 },
-      { day: 'Tue', visits: 40 },
-      { day: 'Wed', visits: 70 },
-      { day: 'Thu', visits: 80 },
-      { day: 'Fri', visits: 60 },
-      { day: 'Sat', visits: 55 },
-      { day: 'Sun', visits: 100 },
-    ]
-  }
-});
+const weeklyData = ref([])
 
-const chartData = {
-  labels: props.mockData.map(d => d.day),
+const fetchTrend = async () => {
+  try {
+    const res = await dashboardTrends();
+    weeklyData.value = res
+  } catch (error) {
+    console.log("Appointment Trend Component Error", error)
+  }
+}
+
+onMounted(() => fetchTrend())
+
+const chartData = computed(() => ({
+  labels: weeklyData.value.map(d => d.day), 
   datasets: [
     {
       label: 'Visits',
-      data: props.mockData.map(d => d.visits),
+      data: weeklyData.value.map(d => d.visits), 
       fill: true,
-      borderColor: '#3b82f6', // Blue-500
+      borderColor: '#3b82f6',
       backgroundColor: (context) => {
-        const bg = context.chart.ctx.createLinearGradient(0, 0, 0, 400);
+        const chart = context.chart;
+        const { ctx, chartArea } = chart;
+        if (!chartArea) return null; 
+
+        const bg = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
         bg.addColorStop(0, 'rgba(59, 130, 246, 0.2)');
         bg.addColorStop(1, 'rgba(59, 130, 246, 0.0)');
         return bg;
       },
-      tension: 0.4, // Creates the smooth curve
+      tension: 0.4,
       pointRadius: 4,
       pointBackgroundColor: '#3b82f6',
       pointBorderColor: '#fff',
       pointBorderWidth: 2,
     },
   ],
-};
+}));
 
 const chartOptions = {
   responsive: true,
@@ -94,10 +98,11 @@ const chartOptions = {
     <div class="flex justify-between items-start mb-6">
       <div>
         <h3 class="text-lg font-bold text-slate-800">Appointment Trends</h3>
-        <p class="text-sm text-slate-400">Visualization of patient visits over the last 30 days</p>
+        <p class="text-sm text-slate-400">Visualization of patient visits over the last 07 days</p>
       </div>
-      <button class="px-4 py-2 bg-slate-50 text-slate-600 text-xs font-bold rounded-lg border border-slate-200 hover:bg-slate-100 transition-colors">
-        Last 30 Days
+      <button
+        class="px-4 py-2 bg-slate-50 text-slate-600 text-xs font-bold rounded-lg border border-slate-200 hover:bg-slate-100 transition-colors">
+        Last 07 Days
       </button>
     </div>
 
@@ -108,5 +113,5 @@ const chartOptions = {
 </template>
 
 export default {
-  name: 'AppointmentTrendsChart',
+name: 'AppointmentTrendsChart',
 };

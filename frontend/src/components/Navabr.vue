@@ -1,13 +1,15 @@
 <script setup>
+import { ref } from "vue"
 import {
-  Bell,
-  Search,
   User,
   Plus
 } from "lucide-vue-next";
 import { useRoute } from "vue-router";
 import { computed } from "vue";
 import { useRouter } from "vue-router";
+import AddDoctorModal from "./AddDoctorModal.vue";
+
+const addDoctor = ref(false)
 
 const route = useRoute();
 const router = useRouter();
@@ -52,7 +54,7 @@ const redirectToProfile = () => {
       <h1 class="font-bold text-xl text-slate-800 tracking-tight">{{ currentPath }}</h1>
     </div>
 
-    <template v-if="currentPath !== 'My Appointments'">
+    <!-- <template v-if="currentPath !== 'My Appointments'">
       <div class="flex-1 max-w-2xl px-8">
         <div class="relative group">
           <Search
@@ -62,12 +64,12 @@ const redirectToProfile = () => {
             class="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" />
         </div>
       </div>
-    </template>
+    </template> -->
 
 
     <div class="flex items-center gap-6">
       <template v-if="currentPath === 'Doctors' || currentPath === 'Patient'">
-        <button
+        <button @click="addDoctor = true"
           class="flex cursor-pointer items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all">
           <Plus :size="18" /> Add Dcotor
         </button>
@@ -100,6 +102,6 @@ const redirectToProfile = () => {
         </div>
       </button>
     </div>
-
+    <AddDoctorModal :isOpen="addDoctor" @close="addDoctor = false" />
   </nav>
 </template>

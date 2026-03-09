@@ -24,14 +24,9 @@ const userDetails = reactive({
 const handleLogin = async () => {
     try {
         loading.value = true
-        const data = await loginAPI({
-            email: userDetails.email,
-            password: userDetails.password,
-            role: selectedRole.value
-        })
-
-        const token = data.token
-        const role = data.role
+        const data = await loginAPI(userDetails, selectedRole.value)
+        const token = data[0].token
+        const role = data[1];
 
         localStorage.setItem("token", token)
 
@@ -46,14 +41,11 @@ const handleLogin = async () => {
         }
 
     } catch (error) {
-        alert("Invalid Email or Password ")
         console.error(error)
     } finally {
         loading.value = false
-        userDetails = {
-            email: '',
-            password: '',
-        }
+        userDetails.email = ''
+        userDetails.password = ''
     }
 }
 
