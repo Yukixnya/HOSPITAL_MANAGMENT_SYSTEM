@@ -6,28 +6,19 @@ from utils import role_required
 from datetime import datetime, timedelta
 from db import mongo
 
+from services.admin.dashboard import stat_data
+from HOSPITAL_MANAGMENT_SYSTEM.backend.services.admin.doctor_service import add_one_doctor , add_many_doctor
+from services.admin.get_service import all_doctors,all_patients,all_appointments
+
+
 admin_bp = Blueprint("admin", __name__)
 
 @admin_bp.route("/admin",methods=["GET"])
 @jwt_required()
 @role_required("Admin")
 def stats():
-
-    total = mongo.db.doctors.count_documents({})
-    active = mongo.db.doctors.count_documents({"status": "Active"})
-    inactive = mongo.db.doctors.count_documents({"status": "Inactive"})
-    on_leave = mongo.db.doctors.count_documents({"status": "On Leave"})
-    patients = mongo.db.patients.count_documents({})
-    appointments = mongo.db.appointments.count_documents({})
-
-    return jsonify({
-        "total_doctors": total,
-        "total_active_doctors": active,
-        "total_inactive_doctors": inactive,
-        "total_onleave_doctors": on_leave,
-        "total_patients": patients,
-        "total_appointments": appointments
-    }), 200
+    data = stat_data()
+    return jsonify(data),200
 
 # -----------------------------
 # Add Doctor
@@ -38,136 +29,35 @@ def stats():
 def add_doctor():
 
     data = request.json
+    result, status = add_one_doctor(data)
 
-    if mongo.db.doctors.find_one({"email": data["email"]}):
-        return jsonify({"error": "Email already exists"}), 400
+    return jsonify(result), status
 
-    doctor = {
-        "name": data["name"],
-        "gender": data["gender"],
-        "mobile": data["mobile"],
-        "email": data["email"],
-        "password": generate_password_hash(data["password"]),
-        "specialization": data["specialization"],
-        "experience": data.get("experience", 0),
-        "schedule": data.get("schedule", ""),
-        "status": "Active"
-    }
-
-    mongo.db.doctors.insert_one(doctor)
-
-    return jsonify({"message": "Doctor created successfully"}), 201
-
-# ---------------------------------------------------------------------
 @admin_bp.route("/admin/bulk-add-doctor", methods=["POST"])
 @jwt_required()
 @role_required("Admin")
 def bulk_add_doctor():
 
     data = request.json
+    result,status = add_many_doctor(data)
 
-    users = []
+    return jsonify(result),status
 
-    for i in data:
-            if mongo.db.doctors.find_one({"email": i["email"]}):
-                return jsonify({"error": "Email already exists"}), 400
-
-            doctor = {
-                "name": i["name"],
-                "gender": i["gender"],
-                "mobile": i["mobile"],
-                "email": i["email"],
-                "password": generate_password_hash(i["password"]),
-                "specialization": i["specialization"],
-                "experience": i.get("experience", 0),
-                "schedule": i.get("schedule", ""),
-                "status": "Active"
-            }
-
-            users.append(doctor)
-
-    mongo.db.doctors.insert_many(users)
-
-    return jsonify({
-        "message": "Doctors registered",
-        "count": len(doctors)
-    }), 201
-# ---------------------------------------------------------------------
 
 # -----------------------------
 # Get All Doctors
 # -----------------------------
-import math
-
 @admin_bp.route("/admin/doctors", methods=["GET"])
 @jwt_required()
 @role_required("Admin")
 def get_all_doctors():
 
     page = int(request.args.get("page", 1))
-    per_page = 10
-    skip = (page - 1) * per_page
     search = request.args.get("search")
 
-    match_stage = {}
+    result, status = all_doctors(page, search)
 
-    if search:
-        match_stage = {
-            "$or": [
-                {"name": {"$regex": search, "$options": "i"}},
-                {"specialization": {"$regex": search, "$options": "i"}}
-            ]
-        }
-
-    pipeline = []
-
-    if search:
-        pipeline.append({"$match": match_stage})
-
-    # Count total documents
-    count_pipeline = pipeline.copy()
-    count_pipeline.append({"$count": "total"})
-    count_result = list(mongo.db.doctors.aggregate(count_pipeline))
-
-    total = count_result[0]["total"] if count_result else 0
-    total_pages = math.ceil(total / per_page) if total else 0
-
-    # Add pagination
-    pipeline.append({"$sort": {"experience": -1}})
-    pipeline.append({"$skip": skip})
-    pipeline.append({"$limit": per_page})
-    pipeline.append({"$project": {"password": 0}})
-
-    doctors = list(mongo.db.doctors.aggregate(pipeline))
-
-    for d in doctors:
-        d["_id"] = str(d["_id"])
-
-    return jsonify({
-        "page": page,
-        "per_page": per_page,
-        "total": total,
-        "total_pages": total_pages,
-        "data": doctors
-    })
-
-
-# # -----------------------------
-# # See One Doctor
-# # -----------------------------
-# @admin_bp.route("/admin/doctors/<doctor_id>", methods=["GET"])
-# @jwt_required()
-# @role_required("Admin")
-# def get_one_doctor(doctor_id):
-
-#     doctor = mongo.db.doctors.find_one({"_id": ObjectId(doctor_id)})
-
-#     if not doctor:
-#         return jsonify({"error": "Doctor not found"}), 404
-
-#     doctor["_id"] = str(doctor["_id"])
-
-#     return jsonify(doctor)
+    return jsonify(result), status
 
 
 # --------------------------------------------------
@@ -343,157 +233,26 @@ def delete_doctor(doctor_id):
 def get_patients():
 
     page = int(request.args.get("page", 1))
-    per_page = 10
-    skip = (page - 1) * per_page
     search = request.args.get("search")
 
-    match_stage = {}
+    result, status = all_patients(page, search)
 
-    if search:
-        match_stage = {
-            "$or": [
-                {"name": {"$regex": search, "$options": "i"}},
-                {"medical_id":{"$regex":search,"$options":"i"}}
-            ]
-        }
+    return jsonify(result), status
 
-    pipeline = []
-
-    if search:
-        pipeline.append({"$match": match_stage})
-
-    # Count total documents
-    count_pipeline = pipeline.copy()
-    count_pipeline.append({"$count": "total"})
-    count_result = list(mongo.db.patients.aggregate(count_pipeline))
-
-    total = count_result[0]["total"] if count_result else 0
-    total_pages = math.ceil(total / per_page) if total else 0
-
-    # Add pagination
-    pipeline.append({"$sort": {"medical_id": 1}})
-    pipeline.append({"$skip": skip})
-    pipeline.append({"$limit": per_page})
-    pipeline.append({"$project": {"password": 0}})
-
-    patients = list(mongo.db.patients.aggregate(pipeline))
-
-    for p in patients:
-        p["_id"] = str(p["_id"])
-        if p.get("admission_date"):
-            p["admission_date"] = p["admission_date"].strftime("%b %d, %Y")
-
-        if p.get("last_visit"):
-            p["last_visit"] = p["last_visit"].strftime("%b %d, %Y")
-
-    return jsonify({
-        "page": page,
-        "per_page": per_page,
-        "total": total,
-        "total_pages": total_pages,
-        "data": patients
-    })
-
-
-
-#---------------------------------
+# -----------------------------
 # Get All Appointments
-# --------------------------------
+# -----------------------------
 @admin_bp.route("/admin/appointments", methods=["GET"])
 @jwt_required()
 @role_required("Admin")
-def get_appointments():
+def get_all_appointments():
 
     page = int(request.args.get("page", 1))
-    per_page = 10
-    skip = (page - 1) * per_page
     search = request.args.get("search")
 
-    pipeline = [
-        {
-            "$lookup": {
-                "from": "patients",
-                "localField": "patient_id",
-                "foreignField": "_id",
-                "as": "patient"
-            }
-        },
-        {"$unwind": "$patient"},
-        {
-            "$lookup": {
-                "from": "doctors",
-                "localField": "doctor_id",
-                "foreignField": "_id",
-                "as": "doctor"
-            }
-        },
-        {"$unwind": "$doctor"}
-    ]
+    result, status = all_appointments(page, search)
 
-    if search:
-        pipeline.append({
-            "$match": {
-                "$or": [
-                    {"patient.name": {"$regex": search, "$options": "i"}},
-                    {"patient.medical_id": {"$regex": search, "$options": "i"}},
-                    {"doctor.name": {"$regex": search, "$options": "i"}}
-                ]
-            }
-        })
-
-    # Count total
-    count_pipeline = pipeline.copy()
-    count_pipeline.append({"$count": "total"})
-    count_result = list(mongo.db.appointments.aggregate(count_pipeline))
-
-    total = count_result[0]["total"] if count_result else 0
-    total_pages = math.ceil(total / per_page) if total else 0
-
-    # Final output format
-    pipeline.append({
-        "$project": {
-            "_id": 1,
-            "patient_id": "$patient.medical_id",
-            "patient_name": "$patient.name",
-            "doctor_name": "$doctor.name",
-            "department": "$doctor.specialization",
-            "status": 1,
-            "time": {
-                "$dateToString": {
-                    "format": "%H:%M",
-                    "date": "$date"
-                }
-            },
-            "date": {
-                "$dateToString": {
-                    "format": "%b %d, %Y",
-                    "date": "$date"
-                }
-            }
-        }
-    })
-
-    # Pagination
-    pipeline.append({"$sort": {"date": -1}})
-    pipeline.append({"$skip": skip})
-    pipeline.append({"$limit": per_page})
-
-    appointments = list(mongo.db.appointments.aggregate(pipeline))
-
-    for a in appointments:
-        a["_id"] = str(a["_id"])
-        dt = datetime.strptime(a["time"], "%H:%M")
-        a["time"] = dt.strftime("%I:%M %p")
-
-    return jsonify({
-        "page": page,
-        "per_page": per_page,
-        "total": total,
-        "total_pages": total_pages,
-        "data": appointments
-    })
-
-
+    return jsonify(result), status
 
 #---------------------------------
 # Appointment Trend

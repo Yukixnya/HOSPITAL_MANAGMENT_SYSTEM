@@ -1,7 +1,8 @@
 from flask import Flask
 from flask_jwt_extended import JWTManager
 from config import Config
-from auth import auth_bp
+from auth.login import login_bp
+from auth.register import register_bp
 from flask_cors import CORS
 from db import init_db
 
@@ -20,7 +21,8 @@ CORS(app)
 jwt = JWTManager(app)
 
 # zhi shi register blueprint, khong can url_prefix vi da co trong blueprint roi
-app.register_blueprint(auth_bp, url_prefix="/auth")
+app.register_blueprint(login_bp, url_prefix="/auth")
+app.register_blueprint(register_bp, url_prefix="/auth")
 app.register_blueprint(patient_bp, url_prefix="/api")
 app.register_blueprint(doctor_bp, url_prefix="/api")
 app.register_blueprint(appointment_bp, url_prefix="/api")
