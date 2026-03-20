@@ -13,7 +13,6 @@ admin_bp = Blueprint("admin", __name__)
 @jwt_required()
 @role_required("Admin")
 def stats():
-
     total = mongo.db.doctors.count_documents({})
     active = mongo.db.doctors.count_documents({"status": "Active"})
     inactive = mongo.db.doctors.count_documents({"status": "Inactive"})

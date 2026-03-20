@@ -15,25 +15,37 @@ appointment_bp = Blueprint("appointments", __name__)
 @jwt_required()
 @role_required("Patient")
 def create_appointment():
-
-    patient_id = get_jwt_identity()
+    user_id = get_jwt_identity()
+    query_id = ObjectId(user_id) if isinstance(user_id, str) and len(user_id)==24 else user_id
     data = request.json
+    
+    try:
+        date_str = data.get("date", "")
+        if "T" in date_str:
+            date_obj = datetime.strptime(date_str[:16], "%Y-%m-%dT%H:%M") # handles e.g. "2023-11-01T10:30"
+        else:
+            date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+    except:
+        return jsonify({"error": "Invalid date format, expected YYYY-MM-DD or YYYY-MM-DDTHH:MM"}), 400
 
     appointment = {
-        "patient_id": ObjectId(data["patient_id"]),
+        "patient_id": query_id,
         "doctor_id": ObjectId(data["doctor_id"]),
-        "date": datetime.strptime(data["date"], "%Y-%m-%d"),
-        "status": "Scheduled"
+        "date": date_obj,
+        "type": data.get("type", "Consultation"),
+        "location": data.get("location", "Main Hospital"),
+        "status": "Pending"
     }
 
-    mongo.db.appointments.insert_one(appointment)
-
-    mongo.db.patients.update_one(
-        {"_id": ObjectId(patient_id)},
-        {"$set": {"last_visit": appointment["date"]}}
-    )
-
-    return jsonify({"message": "Appointment booked"}), 201
+    try:
+        mongo.db.appointments.insert_one(appointment)
+        mongo.db.patients.update_one(
+            {"_id": query_id},
+            {"$set": {"last_visit": appointment["date"]}}
+        )
+        return jsonify({"message": "Appointment booked safely"}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # ---------------------------------
