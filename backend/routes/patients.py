@@ -138,7 +138,23 @@ def patient_dashboard():
 @jwt_required()
 @role_required("Patient")
 def get_doctors_list():
-    doctors_cursor = mongo.db.doctors.find({"status": "Active"})
+    page = request.args.get('page', 1, type=int)
+    per_page = 10
+    skip = (page - 1) * per_page
+    search = request.args.get('search')
+
+    query = {"status": "Active"}
+    
+    if search:
+        query["$or"] = [
+            {"name": {"$regex": search, "$options": "i"}},
+            {"specialization": {"$regex": search, "$options": "i"}}
+        ]
+    
+    total_items = mongo.db.doctors.count_documents(query)
+    total_pages = (total_items + per_page - 1) // per_page if per_page else 0
+
+    doctors_cursor = mongo.db.doctors.find(query).skip(skip).limit(per_page)
     
     result = []
     for d in doctors_cursor:
@@ -155,7 +171,15 @@ def get_doctors_list():
             "image": f"https://ui-avatars.com/api/?name={d.get('name', 'Doc')}"
         })
         
-    return jsonify({"data": result})
+    return jsonify({
+        "pagination": {
+            "current_page": page,
+            "per_page": per_page,
+            "total_items": total_items,
+            "total_pages": total_pages
+        },
+        "data": result
+    })
 
 # -----------------------------
 # 4. Doctor Profile
@@ -211,13 +235,41 @@ def get_my_appointments():
     user_id = get_jwt_identity()
     query_id = ObjectId(user_id) if isinstance(user_id, str) and len(user_id)==24 else user_id
     
+    page = request.args.get('page', 1, type=int)
+    per_page = 10
+    skip = (page - 1) * per_page
+    search = request.args.get('search')
+
     pipeline = [
         {"$match": {"patient_id": query_id}},
         {"$lookup": {"from": "doctors", "localField": "doctor_id", "foreignField": "_id", "as": "doctor_info"}},
-        {"$unwind": {"path": "$doctor_info", "preserveNullAndEmptyArrays": True}},
-        {"$sort": {"date": 1}}
+        {"$unwind": {"path": "$doctor_info", "preserveNullAndEmptyArrays": True}}
     ]
-    
+
+    if search:
+        pipeline.append({
+            "$match": {
+                "$or": [
+                    {"doctor_info.name": {"$regex": search, "$options": "i"}},
+                    {"doctor_info.specialization": {"$regex": search, "$options": "i"}},
+                    {"type": {"$regex": search, "$options": "i"}},
+                    {"status": {"$regex": search, "$options": "i"}}
+                ]
+            }
+        })
+
+    count_pipeline = pipeline.copy()
+    count_pipeline.append({"$count": "total"})
+    count_result = list(mongo.db.appointments.aggregate(count_pipeline))
+    total_items = count_result[0]["total"] if count_result else 0
+    total_pages = (total_items + per_page - 1) // per_page if per_page else 0
+
+    pipeline.extend([
+        {"$sort": {"date": 1}},
+        {"$skip": skip},
+        {"$limit": per_page}
+    ])
+
     appointments = list(mongo.db.appointments.aggregate(pipeline))
     
     now = datetime.utcnow()
@@ -258,7 +310,16 @@ def get_my_appointments():
                 "statusClass": status_class
             })
             
-    return jsonify({"upcomingAppointments": upcoming, "pastVisits": past})
+    return jsonify({
+        "pagination": {
+            "current_page": page,
+            "per_page": per_page,
+            "total_items": total_items,
+            "total_pages": total_pages
+        },
+        "upcomingAppointments": upcoming, 
+        "pastVisits": past
+    })
 
 # -----------------------------
 # 6. Past Appointment Details
@@ -318,7 +379,23 @@ def medical_history():
     user_id = get_jwt_identity()
     query_id = ObjectId(user_id) if isinstance(user_id, str) and len(user_id)==24 else user_id
 
-    records_db = list(mongo.db.medical_records.find({"patient_id": query_id}))
+    page = request.args.get('page', 1, type=int)
+    per_page = 10
+    skip = (page - 1) * per_page
+    search = request.args.get('search')
+    
+    base_query = {"patient_id": query_id}
+    if search:
+        base_query["$or"] = [
+            {"title": {"$regex": search, "$options": "i"}},
+            {"description": {"$regex": search, "$options": "i"}},
+            {"provider": {"$regex": search, "$options": "i"}}
+        ]
+    
+    total_items = mongo.db.medical_records.count_documents(base_query)
+    total_pages = (total_items + per_page - 1) // per_page if per_page else 0
+
+    records_db = list(mongo.db.medical_records.find(base_query).skip(skip).limit(per_page))
     medicalRecords = []
     
     for r in records_db:
@@ -337,14 +414,25 @@ def medical_history():
             "actionLabel": r.get("actionLabel", "View")
         })
 
+    # Stats use global unfiltered quantities bounds
+    global_total = mongo.db.medical_records.count_documents({"patient_id": query_id})
+    lab_tests_count = mongo.db.medical_records.count_documents({"patient_id": query_id, "type": "Lab Report"})
+    encounters_count = mongo.db.medical_records.count_documents({"patient_id": query_id, "type": "Clinical Visit"})
+
     historyStats = [
-      {"label": 'Diagnoses', "value": str(len(medicalRecords)), "icon": '💼', "bgClass": 'bg-blue-50 text-blue-600'},
-      {"label": 'Lab Tests', "value": str(len([r for r in medicalRecords if r["type"]=='Lab Report'])), "icon": '🔬', "bgClass": 'bg-green-50 text-green-600'},
-      {"label": 'Encounters', "value": str(len([r for r in medicalRecords if r["type"]=='Clinical Visit'])), "icon": '🏥', "bgClass": 'bg-purple-50 text-purple-600'},
+      {"label": 'Diagnoses', "value": str(global_total), "icon": '💼', "bgClass": 'bg-blue-50 text-blue-600'},
+      {"label": 'Lab Tests', "value": str(lab_tests_count), "icon": '🔬', "bgClass": 'bg-green-50 text-green-600'},
+      {"label": 'Encounters', "value": str(encounters_count), "icon": '🏥', "bgClass": 'bg-purple-50 text-purple-600'},
       {"label": 'Archived', "value": '0', "icon": '📑', "bgClass": 'bg-orange-50 text-orange-600'}
     ]
     
     return jsonify({
+        "pagination": {
+            "current_page": page,
+            "per_page": per_page,
+            "total_items": total_items,
+            "total_pages": total_pages
+        },
         "historyStats": historyStats,
         "medicalRecords": medicalRecords
     })
