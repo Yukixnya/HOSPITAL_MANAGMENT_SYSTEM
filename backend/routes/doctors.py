@@ -108,16 +108,48 @@ def my_appointments():
     doctor_id = get_jwt_identity()
     query_id = ObjectId(doctor_id) if isinstance(doctor_id, str) and len(doctor_id)==24 else doctor_id
 
+    page = request.args.get('page', 1, type=int)
+    per_page = 10
+    skip = (page - 1) * per_page
+    
+    search = request.args.get("search")
+    status = request.args.get("status")
+
+    match_query = {"doctor_id": query_id}
+    if status:
+        match_query["status"] = status
+
     pipeline = [
-        {"$match": {"doctor_id": query_id}},
+        {"$match": match_query},
         {"$lookup": {
             "from": "patients",
             "localField": "patient_id",
             "foreignField": "_id",
             "as": "patient_info"
         }},
-        {"$unwind": {"path": "$patient_info", "preserveNullAndEmptyArrays": True}},
+        {"$unwind": {"path": "$patient_info", "preserveNullAndEmptyArrays": True}}
+    ]
+
+    if search:
+        pipeline.append({
+            "$match": {
+                "$or": [
+                    {"patient_info.name": {"$regex": search, "$options": "i"}},
+                    {"patient_info.medical_id": {"$regex": search, "$options": "i"}}
+                ]
+            }
+        })
+
+    count_pipeline = pipeline.copy()
+    count_pipeline.append({"$count": "total"})
+    count_result = list(mongo.db.appointments.aggregate(count_pipeline))
+    total_items = count_result[0]["total"] if count_result else 0
+    total_pages = (total_items + per_page - 1) // per_page if per_page else 0
+
+    pipeline.extend([
         {"$sort": {"date": 1}},
+        {"$skip": skip},
+        {"$limit": per_page},
         {"$project": {
             "_id": {"$toString": "$_id"},
             "patient_id": {"$toString": "$patient_id"},
@@ -131,10 +163,19 @@ def my_appointments():
             "patient_gender": "$patient_info.gender",
             "medical_id": "$patient_info.medical_id"
         }}
-    ]
+    ])
     
     formatted_appointments = list(mongo.db.appointments.aggregate(pipeline))
-    return jsonify({"data": formatted_appointments})
+
+    return jsonify({
+        "pagination": {
+            "current_page": page,
+            "per_page": per_page,
+            "total_items": total_items,
+            "total_pages": total_pages
+        },
+        "data": formatted_appointments
+    })
 
 
 # Doctor all patients
@@ -142,7 +183,38 @@ def my_appointments():
 @jwt_required()
 @role_required("Doctor")
 def get_patients():
-    pipeline = [
+    page = request.args.get('page', 1, type=int)
+    per_page = 10
+    skip = (page - 1) * per_page
+    
+    search = request.args.get("search")
+    patient_filter = request.args.get("filter")
+
+    match_query = {}
+    
+    if patient_filter and patient_filter != "All Patients":
+        match_query["condition"] = patient_filter
+
+    if search:
+        match_query["$or"] = [
+                {"name": {"$regex": search, "$options": "i"}},
+                {"medical_id": {"$regex": search, "$options": "i"}},
+                {"condition": {"$regex": search, "$options": "i"}}
+            ]
+
+    pipeline = []
+    if match_query:
+        pipeline.append({"$match": match_query})
+
+    count_pipeline = pipeline.copy()
+    count_pipeline.append({"$count": "total"})
+    count_result = list(mongo.db.patients.aggregate(count_pipeline))
+    total_items = count_result[0]["total"] if count_result else 0
+    total_pages = (total_items + per_page - 1) // per_page if per_page else 0
+
+    pipeline.extend([
+        {"$skip": skip},
+        {"$limit": per_page},
         {"$project": {
             "password": 0
         }},
@@ -158,12 +230,40 @@ def get_patients():
             "last_visit": {"$dateToString": {"format": "%Y-%m-%d", "date": "$last_visit"}},
             "admission_date": {"$dateToString": {"format": "%Y-%m-%d", "date": "$admission_date"}}
         }}
-    ]
+    ])
     
     patients = list(mongo.db.patients.aggregate(pipeline))
-    return jsonify({"data": patients})
+
+    return jsonify({
+        "pagination": {
+            "current_page": page,
+            "per_page": per_page,
+            "total_items": total_items,
+            "total_pages": total_pages
+        },
+        "data": patients
+    })
 
 
+@doctor_bp.route("/doctors/patient-profile/<patient_id>", methods=["GET"])
+@jwt_required()
+@role_required("Doctor")
+def patient_profile(patient_id):
+    data = request.json
+    try:
+        pid = ObjectId(patient_id)
+    except:
+        return jsonify({"error": "Invalid patient ID"}), 400
+
+    patient = mongo.db.patients.find_one({"_id": pid}, {"password": 0})
+    if not patient:
+        return jsonify({"error": "Patient not found"}), 404
+
+    return jsonify(patient)
+
+
+
+    
 # patient condition update
 @doctor_bp.route("/patients/<patient_id>/condition", methods=["PUT"])
 @jwt_required()
