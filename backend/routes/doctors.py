@@ -57,6 +57,7 @@ def doctor_dashboard():
             "patient_id": {"$toString": "$patient_id"},
             "doctor_id": {"$toString": "$doctor_id"},
             "status": 1,
+            "type": {"$ifNull": ["$type", "Consultation"]},
             "date": {"$dateToString": {"format": "%Y-%m-%d", "date": "$date"}},
             "time": {"$dateToString": {"format": "%H:%M", "date": "$date"}},
             "patient_name": "$patient_info.name",
@@ -72,10 +73,10 @@ def doctor_dashboard():
     # 2. Total patients count
     total_patients = mongo.db.patients.count_documents({})
 
-    # 3. Pending reports count
+    # 3. Pending reports count (checking the newly seeded medical_records)
     pending_reports = 0
-    if "reports" in mongo.db.list_collection_names():
-        pending_reports = mongo.db.reports.count_documents({"doctor_id": query_id, "status": "pending"})
+    if "medical_records" in mongo.db.list_collection_names():
+        pending_reports = mongo.db.medical_records.count_documents({"doctor_id": query_id, "status": "Pending"})
 
     # 4. Recent patients
     recent_patients_cursor = mongo.db.patients.find().sort("_id", -1).limit(5)
@@ -122,6 +123,7 @@ def my_appointments():
             "patient_id": {"$toString": "$patient_id"},
             "doctor_id": {"$toString": "$doctor_id"},
             "status": 1,
+            "type": {"$ifNull": ["$type", "Consultation"]},
             "date": {"$dateToString": {"format": "%Y-%m-%d", "date": "$date"}},
             "time": {"$dateToString": {"format": "%H:%M", "date": "$date"}},
             "patient_name": "$patient_info.name",

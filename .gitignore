@@ -38,3 +38,9 @@ env/
 # Environment variables
 .env
 .env.*
+
+
+# development scripts
+./query.py
+./seed_db.py
+./seed_all_db.py
