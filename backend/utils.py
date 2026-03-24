@@ -2,6 +2,12 @@ from flask_jwt_extended import get_jwt
 from functools import wraps
 from flask import jsonify
 
+
+
+
+# -------------------------
+# Role Decorator
+# -------------------------
 def role_required(required_role):
     def wrapper(fn):
         @wraps(fn)
@@ -16,19 +22,41 @@ def role_required(required_role):
     return wrapper
 
 
-from db import mongo
-from pymongo import ReturnDocument
+from extensions import db
+from models import Counter
 
+
+
+
+# -------------------------
+# ID Generator of Patient
+# -------------------------
 def get_next_medical_id():
-
-    counter = mongo.db.counters.find_one_and_update(
-        {"_id": "patient_id"},
-        {"$inc": {"seq": 1}},
-        upsert=True,
-        return_document=ReturnDocument.AFTER
-    )
-
-    num = counter["seq"]
-
-    return f"MR-{str(num).zfill(5)}"
+    counter = Counter.query.filter_by(id="patient_id").first()
+    if not counter:
+        counter = Counter(id="patient_id", seq=0)
+        db.session.add(counter)
+        db.session.commit()
+        
+    counter.seq += 1
+    db.session.commit()
     
+    return f"MR-{str(counter.seq).zfill(5)}"
+
+
+
+
+# -------------------------
+# ID Generator of Doctor
+# -------------------------
+def get_next_doctor_id():
+    counter = Counter.query.filter_by(id="doctor_id").first()
+    if not counter:
+        counter = Counter(id="doctor_id", seq=0)
+        db.session.add(counter)
+        db.session.commit()
+        
+    counter.seq += 1
+    db.session.commit()
+    
+    return f"DOC-{str(counter.seq).zfill(5)}"

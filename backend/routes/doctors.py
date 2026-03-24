@@ -1,25 +1,41 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from utils import role_required
-from bson import ObjectId
-from db import mongo
+from extensions import db
+from models import Doctor, Patient, Appointment, MedicalRecord, Prescription, Note, Vital
 from datetime import datetime, timedelta
 
 doctor_bp = Blueprint("doctors", __name__)
 
-# Doctor profile
+
+
+# -----------------------------
+# Doctor Profile
+# -----------------------------
 @doctor_bp.route("/doctors/me", methods=["GET"])
 @jwt_required()
 @role_required("Doctor")
 def get_my_profile():
-    user_id = get_jwt_identity()
-    doctor = mongo.db.doctors.find_one({"_id": ObjectId(user_id)}, {"password": 0})
+    user_id = int(get_jwt_identity())
+    doctor = Doctor.query.get(user_id)
 
     if not doctor:
         return jsonify({"error": "Doctor profile not found"}), 404
 
-    doctor["_id"] = str(doctor["_id"])
-    return jsonify(doctor)
+    doctor_dict = {
+        "_id": str(doctor.id),
+        "doctor_id": doctor.doctor_id,
+        "name": doctor.name,
+        "email": doctor.email,
+        "specialization": doctor.specialization,
+        "experience": doctor.experience,
+        "schedule": doctor.schedule,
+        "status": doctor.status,
+        "mobile": doctor.mobile,
+        "gender": doctor.gender,
+        "image": doctor.image_url if doctor.image_url else f"https://ui-avatars.com/api/?name={doctor.name}"
+    }
+    return jsonify(doctor_dict)
 
 
 # Todays dashboard
@@ -27,8 +43,7 @@ def get_my_profile():
 @jwt_required()
 @role_required("Doctor")
 def doctor_dashboard():
-    doctor_id = get_jwt_identity()
-    query_id = ObjectId(doctor_id) if isinstance(doctor_id, str) and len(doctor_id)==24 else doctor_id
+    doctor_id = int(get_jwt_identity())
 
     # For today filtering, start and end of day datetime objects
     now = datetime.utcnow()
@@ -39,55 +54,47 @@ def doctor_dashboard():
     end_of_week = start_of_week + timedelta(days=7)
 
     # 1. Weekly appointments
-    pipeline_week = [
-        {"$match": {
-            "doctor_id": query_id,
-            "date": {"$gte": start_of_week, "$lt": end_of_week}
-        }},
-        {"$lookup": {
-            "from": "patients",
-            "localField": "patient_id",
-            "foreignField": "_id",
-            "as": "patient_info"
-        }},
-        {"$unwind": {"path": "$patient_info", "preserveNullAndEmptyArrays": True}},
-        {"$sort": {"date": 1}},
-        {"$project": {
-            "_id": {"$toString": "$_id"},
-            "patient_id": {"$toString": "$patient_id"},
-            "doctor_id": {"$toString": "$doctor_id"},
-            "status": 1,
-            "type": {"$ifNull": ["$type", "Consultation"]},
-            "date": {"$dateToString": {"format": "%Y-%m-%d", "date": "$date"}},
-            "time": {"$dateToString": {"format": "%H:%M", "date": "$date"}},
-            "patient_name": "$patient_info.name",
-            "patient_age": "$patient_info.age",
-            "patient_gender": "$patient_info.gender"
-        }}
-    ]
-    weekly_schedule = list(mongo.db.appointments.aggregate(pipeline_week))
+    appointments = Appointment.query.filter(
+        Appointment.doctor_id == doctor_id,
+        Appointment.date >= start_of_week,
+        Appointment.date < end_of_week
+    ).order_by(Appointment.date.asc()).all()
     
+    weekly_schedule = []
+    for appt in appointments:
+        if appt.patient:
+            weekly_schedule.append({
+                "_id": str(appt.id),
+                "patient_id": str(appt.patient_id),
+                "doctor_id": str(appt.doctor_id),
+                "status": appt.status,
+                "type": appt.type if appt.type else "Consultation",
+                "date": appt.date.strftime("%Y-%m-%d") if appt.date else "",
+                "time": appt.date.strftime("%H:%M") if appt.date else "",
+                "patient_name": appt.patient.name,
+                "patient_age": appt.patient.age,
+                "patient_gender": appt.patient.gender
+            })
+            
     today_str = start_of_today.strftime("%Y-%m-%d")
     today_appointments = [appt for appt in weekly_schedule if appt.get("date") == today_str]
 
     # 2. Total patients count
-    total_patients = mongo.db.patients.count_documents({})
+    total_patients = Patient.query.count()
 
-    # 3. Pending reports count (checking the newly seeded medical_records)
-    pending_reports = 0
-    if "medical_records" in mongo.db.list_collection_names():
-        pending_reports = mongo.db.medical_records.count_documents({"doctor_id": query_id, "status": "Pending"})
+    # 3. Pending reports count
+    pending_reports = MedicalRecord.query.filter_by(doctor_id=doctor_id, status="Pending").count()
 
     # 4. Recent patients
-    recent_patients_cursor = mongo.db.patients.find().sort("_id", -1).limit(5)
+    recent = Patient.query.order_by(Patient.id.desc()).limit(5).all()
     recent_patients = []
-    for p in recent_patients_cursor:
+    for p in recent:
         recent_patients.append({
-            "_id": str(p["_id"]),
-            "medical_id": p.get("medical_id"),
-            "name": p.get("name"),
-            "gender": p.get("gender"),
-            "age": p.get("age")
+            "_id": str(p.id),
+            "medical_id": p.medical_id,
+            "name": p.name,
+            "gender": p.gender,
+            "age": p.age
         })
 
     return jsonify({
@@ -100,184 +107,239 @@ def doctor_dashboard():
     })
 
 
-# Doctor all appointments
+
+
+# -----------------------------
+# Doctor All Appointments
+# -----------------------------
 @doctor_bp.route("/doctors/my-appointments", methods=["GET"])
 @jwt_required()
 @role_required("Doctor")
 def my_appointments():
-    doctor_id = get_jwt_identity()
-    query_id = ObjectId(doctor_id) if isinstance(doctor_id, str) and len(doctor_id)==24 else doctor_id
+    doctor_id = int(get_jwt_identity())
 
     page = request.args.get('page', 1, type=int)
     per_page = 10
-    skip = (page - 1) * per_page
     
     search = request.args.get("search")
     status = request.args.get("status")
 
-    match_query = {"doctor_id": query_id}
+    query = Appointment.query.join(Patient).filter(Appointment.doctor_id == doctor_id)
     if status:
-        match_query["status"] = status
-
-    pipeline = [
-        {"$match": match_query},
-        {"$lookup": {
-            "from": "patients",
-            "localField": "patient_id",
-            "foreignField": "_id",
-            "as": "patient_info"
-        }},
-        {"$unwind": {"path": "$patient_info", "preserveNullAndEmptyArrays": True}}
-    ]
-
+        query = query.filter(Appointment.status == status)
     if search:
-        pipeline.append({
-            "$match": {
-                "$or": [
-                    {"patient_info.name": {"$regex": search, "$options": "i"}},
-                    {"patient_info.medical_id": {"$regex": search, "$options": "i"}}
-                ]
-            }
-        })
-
-    count_pipeline = pipeline.copy()
-    count_pipeline.append({"$count": "total"})
-    count_result = list(mongo.db.appointments.aggregate(count_pipeline))
-    total_items = count_result[0]["total"] if count_result else 0
-    total_pages = (total_items + per_page - 1) // per_page if per_page else 0
-
-    pipeline.extend([
-        {"$sort": {"date": 1}},
-        {"$skip": skip},
-        {"$limit": per_page},
-        {"$project": {
-            "_id": {"$toString": "$_id"},
-            "patient_id": {"$toString": "$patient_id"},
-            "doctor_id": {"$toString": "$doctor_id"},
-            "status": 1,
-            "type": {"$ifNull": ["$type", "Consultation"]},
-            "date": {"$dateToString": {"format": "%Y-%m-%d", "date": "$date"}},
-            "time": {"$dateToString": {"format": "%H:%M", "date": "$date"}},
-            "patient_name": "$patient_info.name",
-            "patient_age": "$patient_info.age",
-            "patient_gender": "$patient_info.gender",
-            "medical_id": "$patient_info.medical_id"
-        }}
-    ])
+        query = query.filter(db.or_(
+            Patient.name.ilike(f"%{search}%"),
+            Patient.medical_id.ilike(f"%{search}%")
+        ))
     
-    formatted_appointments = list(mongo.db.appointments.aggregate(pipeline))
+    pagination = query.order_by(Appointment.date.asc()).paginate(page=page, per_page=per_page, error_out=False)
+    
+    formatted_appointments = []
+    for appt in pagination.items:
+        formatted_appointments.append({
+            "_id": str(appt.id),
+            "patient_id": str(appt.patient_id),
+            "doctor_id": str(appt.doctor_id),
+            "status": appt.status,
+            "type": appt.type if appt.type else "Consultation",
+            "date": appt.date.strftime("%Y-%m-%d") if appt.date else "",
+            "time": appt.date.strftime("%H:%M") if appt.date else "",
+            "patient_name": appt.patient.name,
+            "patient_age": appt.patient.age,
+            "patient_gender": appt.patient.gender,
+            "medical_id": appt.patient.medical_id
+        })
 
     return jsonify({
         "pagination": {
             "current_page": page,
             "per_page": per_page,
-            "total_items": total_items,
-            "total_pages": total_pages
+            "total_items": pagination.total,
+            "total_pages": pagination.pages
         },
         "data": formatted_appointments
     })
 
 
-# Doctor all patients
+
+
+# -----------------------------
+# Doctor All Patients
+# -----------------------------
 @doctor_bp.route("/doctors/patients", methods=["GET"])
 @jwt_required()
 @role_required("Doctor")
 def get_patients():
     page = request.args.get('page', 1, type=int)
     per_page = 10
-    skip = (page - 1) * per_page
     
     search = request.args.get("search")
     patient_filter = request.args.get("filter")
 
-    match_query = {}
-    
+    query = Patient.query
     if patient_filter and patient_filter != "All Patients":
-        match_query["condition"] = patient_filter
-
+        query = query.filter(Patient.condition == patient_filter)
     if search:
-        match_query["$or"] = [
-                {"name": {"$regex": search, "$options": "i"}},
-                {"medical_id": {"$regex": search, "$options": "i"}},
-                {"condition": {"$regex": search, "$options": "i"}}
-            ]
+        query = query.filter(db.or_(
+            Patient.name.ilike(f"%{search}%"),
+            Patient.medical_id.ilike(f"%{search}%"),
+            Patient.condition.ilike(f"%{search}%")
+        ))
+        
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
 
-    pipeline = []
-    if match_query:
-        pipeline.append({"$match": match_query})
-
-    count_pipeline = pipeline.copy()
-    count_pipeline.append({"$count": "total"})
-    count_result = list(mongo.db.patients.aggregate(count_pipeline))
-    total_items = count_result[0]["total"] if count_result else 0
-    total_pages = (total_items + per_page - 1) // per_page if per_page else 0
-
-    pipeline.extend([
-        {"$skip": skip},
-        {"$limit": per_page},
-        {"$project": {
-            "password": 0
-        }},
-        {"$project": {
-            "_id": {"$toString": "$_id"},
-            "medical_id": 1,
-            "name": 1,
-            "gender": 1,
-            "age": 1,
-            "condition": 1,
-            "email": 1,
-            "mobile": 1,
-            "last_visit": {"$dateToString": {"format": "%Y-%m-%d", "date": "$last_visit"}},
-            "admission_date": {"$dateToString": {"format": "%Y-%m-%d", "date": "$admission_date"}}
-        }}
-    ])
-    
-    patients = list(mongo.db.patients.aggregate(pipeline))
+    patients = []
+    for p in pagination.items:
+        patients.append({
+            "_id": str(p.id),
+            "medical_id": p.medical_id,
+            "name": p.name,
+            "gender": p.gender,
+            "age": p.age,
+            "condition": p.condition,
+            "email": p.email,
+            "mobile": p.mobile,
+            "last_visit": p.last_visit.strftime("%Y-%m-%d") if p.last_visit else None,
+            "admission_date": p.admission_date.strftime("%Y-%m-%d") if p.admission_date else None
+        })
 
     return jsonify({
         "pagination": {
             "current_page": page,
             "per_page": per_page,
-            "total_items": total_items,
-            "total_pages": total_pages
+            "total_items": pagination.total,
+            "total_pages": pagination.pages
         },
         "data": patients
     })
 
 
+
+
+# -----------------------------
+# Single Patient Profile
+# -----------------------------
 @doctor_bp.route("/doctors/patient-profile/<patient_id>", methods=["GET"])
 @jwt_required()
 @role_required("Doctor")
 def patient_profile(patient_id):
-    data = request.json
-    try:
-        pid = ObjectId(patient_id)
-    except:
-        return jsonify({"error": "Invalid patient ID"}), 400
-
-    patient = mongo.db.patients.find_one({"_id": pid}, {"password": 0})
+    if patient_id.startswith("MR-"):
+        patient = Patient.query.filter_by(medical_id=patient_id).first()
+    else:
+        patient = Patient.query.get(int(patient_id))
     if not patient:
         return jsonify({"error": "Patient not found"}), 404
+        
+    return jsonify({
+        "_id": str(patient.id),
+        "medical_id": patient.medical_id,
+        "name": patient.name,
+        "age": patient.age,
+        "gender": patient.gender,
+        "mobile": patient.mobile,
+        "email": patient.email,
+        "condition": patient.condition,
+        "last_visit": patient.last_visit.isoformat() if patient.last_visit else None,
+        "admission_date": patient.admission_date.isoformat() if patient.admission_date else None,
+        "dob": patient.dob,
+        "address": patient.address,
+        "preferences": patient.preferences
+    })
 
-    return jsonify(patient)
+ 
 
-
-
-    
-# patient condition update
+   
+# -----------------------------
+# Patient Condition Update
+# -----------------------------
 @doctor_bp.route("/patients/<patient_id>/condition", methods=["PUT"])
 @jwt_required()
 @role_required("Doctor")
 def update_condition(patient_id):
+    if patient_id.startswith("MR-"):
+        patient = Patient.query.filter_by(medical_id=patient_id).first()
+    else:
+        patient = Patient.query.get(int(patient_id))
+    if not patient:
+        return jsonify({"error": "Patient not found"}), 404
+        
     data = request.json
-    try:
-        pid = ObjectId(patient_id)
-    except:
-        return jsonify({"error": "Invalid patient ID"}), 400
+    patient.condition = data.get("condition", "")
+    db.session.commit()
+    return jsonify({"message": "Patient condition updated"})
 
-    mongo.db.patients.update_one(
-        {"_id": pid},
-        {"$set": {"condition": data.get("condition", "")}}
+
+
+
+# -----------------------------
+# Add Prescription
+# -----------------------------
+@doctor_bp.route("/doctors/appointments/<apt_id>/prescription", methods=["POST"])
+@jwt_required()
+@role_required("Doctor")
+def add_prescription(apt_id):
+    apt = Appointment.query.get(int(apt_id))
+    if not apt: 
+        return jsonify({"error": "Appointment not found"}), 404
+        
+    data = request.json
+    p = Prescription(
+        appointment_id=apt.id,
+        name=data.get("name"),
+        dosage=data.get("dosage"),
+        frequency=data.get("frequency"),
+        duration=data.get("duration")
     )
+    db.session.add(p)
+    db.session.commit()
+    return jsonify({"message": "Prescription added successfully"}), 201
 
-    return jsonify({"message": "Condition updated"})
+
+
+
+# -----------------------------
+# Add Note
+# -----------------------------
+@doctor_bp.route("/doctors/appointments/<apt_id>/note", methods=["POST"])
+@jwt_required()
+@role_required("Doctor")
+def add_note(apt_id):
+    apt = Appointment.query.get(int(apt_id))
+    if not apt: 
+        return jsonify({"error": "Appointment not found"}), 404
+        
+    data = request.json
+    n = Note(
+        appointment_id=apt.id,
+        text=data.get("text")
+    )
+    db.session.add(n)
+    db.session.commit()
+    return jsonify({"message": "Note added successfully"}), 201
+
+
+
+
+# -----------------------------
+# Add Vital
+# -----------------------------
+@doctor_bp.route("/doctors/appointments/<apt_id>/vital", methods=["POST"])
+@jwt_required()
+@role_required("Doctor")
+def add_vital(apt_id):
+    apt = Appointment.query.get(int(apt_id))
+    if not apt: 
+        return jsonify({"error": "Appointment not found"}), 404
+        
+    data = request.json
+    v = Vital(
+        appointment_id=apt.id,
+        patient_id=apt.patient_id,
+        label=data.get("label"),
+        value=data.get("value"),
+        unit=data.get("unit")
+    )
+    db.session.add(v)
+    db.session.commit()
+    return jsonify({"message": "Vital added successfully"}), 201

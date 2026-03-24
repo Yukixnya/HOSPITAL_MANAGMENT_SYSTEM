@@ -1,11 +1,16 @@
-from flask_pymongo import PyMongo
-from dotenv import load_dotenv
 import os
+from dotenv import load_dotenv
+from extensions import db
 
 load_dotenv()
 
-mongo = PyMongo()
-
 def init_db(app):
-    app.config["MONGO_URI"] = os.getenv("MONGO_URI")
-    mongo.init_app(app)
+
+    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///hospital.db"
+    app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+    
+    db.init_app(app)
+    
+    with app.app_context():
+        import models
+        db.create_all()

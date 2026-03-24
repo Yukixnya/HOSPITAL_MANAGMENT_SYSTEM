@@ -10,6 +10,7 @@ from routes.patients import patient_bp
 from routes.doctors import doctor_bp
 from routes.appointments import appointment_bp
 from routes.admin import admin_bp
+from routes.uploads import upload_bp
 
 
 app = Flask(__name__)
@@ -27,6 +28,7 @@ app.register_blueprint(patient_bp, url_prefix="/api")
 app.register_blueprint(doctor_bp, url_prefix="/api")
 app.register_blueprint(appointment_bp, url_prefix="/api")
 app.register_blueprint(admin_bp, url_prefix="/api")
+app.register_blueprint(upload_bp, url_prefix="/api")
 
 print(app.url_map)
 
