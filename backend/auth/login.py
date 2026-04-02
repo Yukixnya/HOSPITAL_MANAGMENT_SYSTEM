@@ -9,7 +9,8 @@ login_bp = Blueprint("login", __name__)
 def login():
 
     data = request.json
-    role = data.get("role")
+
+    role = data["role"]
 
     if role == "Admin":
         user = Admin.query.filter_by(email=data["email"]).first()
@@ -31,7 +32,14 @@ def login():
         additional_claims={"role": role}
     )
 
-    return jsonify({"token": token})
+    user_data = {
+        "id": user.id,
+        "name": user.name,
+        "email": user.email,
+        "role": role
+    }
+
+    return jsonify({"token": token, "user": user_data}), 200
 
 @login_bp.route('/logout', methods=["POST"])
 def logout():

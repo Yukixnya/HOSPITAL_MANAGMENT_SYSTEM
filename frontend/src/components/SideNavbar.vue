@@ -1,100 +1,93 @@
 <script setup>
-import { ref } from 'vue';
+import { computed } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { 
-  LayoutGrid, 
-  BriefcaseMedical, 
-  Users, 
-  CalendarDays, 
-  Settings, 
-  LogOut, 
-  TimerReset
+  LayoutGrid, BriefcaseMedical, Users, 
+  CalendarDays, LogOut, TimerReset
 } from 'lucide-vue-next';
-import { useRouter } from 'vue-router';
-import { computed} from 'vue';
+import { useUserStore } from '../store/userStore';
 
+const route = useRoute();
 const router = useRouter();
-const route = computed(() => {
-  const path = router.currentRoute.value.path.split('/').filter(Boolean);
-  return { path };
+const userStore = useUserStore();
+
+const currentRole = computed(() => {
+  const segments = route.path.split('/').filter(Boolean);
+  return segments[0] || 'patient';
 });
 
-const currentPath = route.value.path[0];
+const isActive = (link) => {
+  if (link === '/' + currentRole.value) {
+    return route.path === link;
+  }
+  return route.path.startsWith(link);
+};
 
-const activeItem = ref('Dashboard');
+const menuGroups = {
+  admin: [
+    { name: 'Dashboard', icon: LayoutGrid, link: '/admin' },
+    { name: 'Doctors', icon: BriefcaseMedical, link: '/admin/doctors' },
+    { name: 'Patients', icon: Users, link: '/admin/patients' },
+    { name: 'Appointments', icon: CalendarDays, link: '/admin/appointments' }
+  ],
+  doctor: [
+    { name: 'Dashboard', icon: LayoutGrid, link: '/doctor' },
+    { name: 'My Patients', icon: Users, link: '/doctor/patients' },
+    { name: 'Appointments', icon: CalendarDays, link: '/doctor/appointments' }
+  ],
+  patient: [
+    { name: 'Dashboard', icon: LayoutGrid, link: '/patient' },
+    { name: 'My Doctors', icon: Users, link: '/patient/doctors' },
+    { name: 'Appointments', icon: CalendarDays, link: '/patient/my-appointments' },
+    { name: "Medical History", icon: TimerReset, link: '/patient/medical-history' }
+  ]
+};
 
-const AdminMenuItems = [
-  { name: 'Dashboard', icon: LayoutGrid, link: '/admin' },
-  { name: 'Doctors', icon: BriefcaseMedical, link: '/admin/doctors' },
-  { name: 'Patients', icon: Users, link: '/admin/patients' },
-  { name: 'Appointments', icon: CalendarDays, link: '/admin/appointments' }
-];
+const currentMenu = computed(() => menuGroups[currentRole.value] || menuGroups.patient);
 
-const DoctorMenuItems = [
-  { name: 'Dashboard', icon: LayoutGrid, link: '/doctor' },
-  { name: 'MyPatients', icon: Users, link: '/doctor/patients' },
-  { name: 'Appointments', icon: CalendarDays, link: '/doctor/appointments' }
-];
-
-const PatientMenuItems = [
-  { name: 'Dashboard', icon: LayoutGrid, link: '/patient' },
-  { name: 'MyDoctors', icon: Users, link: '/patient/doctors' },
-  { name: 'Appointments', icon: CalendarDays, link: '/patient/my-appointments' },
-  { name: "Medical History", icon: TimerReset, link: '/patient/medical-history' }
-]
-
-const footerItems = [
-  { name: 'Logout', icon: LogOut, variant: 'danger' },
-];
+const handleLogout = () => {
+  userStore.clearUser();
+  router.push('/auth/login');
+};
 </script>
 
 <template>
-  <aside class="flex flex-col fixed w-64 h-screen bg-white border-r border-gray-100 p-4">
-    <div class="flex items-center gap-3 px-2 mb-8">
-      <div class="bg-blue-600 p-2 rounded-xl">
-        <svg class="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 2L4 5v6.09c0 5.05 3.41 9.76 8 10.91 4.59-1.15 8-5.86 8-10.91V5l-8-3zm1 14h-2v-3H8v-2h3V8h2v3h3v2h-3v3z"/>
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-logo">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 2L4 5v6.09c0 5.05 3.41 9.76 8 10.91 4.59-1.15 8-5.86 8-10.91V5l-8-3zm1 14h-2v-3H8v-2h3V8h2v3h3v2h-3v3z"/>
         </svg>
       </div>
-      <div>
-        <h1 class="font-bold text-slate-800 leading-tight text-lg">MedCore</h1>
-        <p class="text-xs text-slate-400 font-medium">Enterprise Portal</p>
+      <div class="brand-text">
+        <h1 class="brand-name">MedCore</h1>
+        <p class="brand-tagline">Enterprise Portal</p>
       </div>
     </div>
 
-    <nav class="flex-1 space-y-1">
-    <!-- Menu Items -->
-     <template v-if="currentPath === 'admin' ? AdminMenuItems : currentPath === 'doctor' ? DoctorMenuItems : PatientMenuItems">
-       <button
-        v-for="item in currentPath === 'admin' ? AdminMenuItems : currentPath === 'doctor' ? DoctorMenuItems : PatientMenuItems"
+    <nav class="sidebar-nav">
+      <button
+        v-for="item in currentMenu"
         :key="item.name"
-        @click="activeItem = item.name; $router.push(item.link)"
-        :class="[
-          'w-full cursor-pointer flex items-center gap-4 px-4 py-3 rounded-lg transition-colors duration-200',
-          activeItem === item.name 
-            ? 'bg-blue-50 text-blue-600' 
-            : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
-        ]"
+        @click="$router.push(item.link)"
+        :class="['nav-link', { 'is-active': isActive(item.link) }]"
       >
-        <component :is="item.icon" :size="20" :stroke-width="activeItem === item.name ? 2.5 : 2" />
-        <span class="font-medium">{{ item.name }}</span>
+        <component 
+          :is="item.icon" 
+          class="nav-icon" 
+          :stroke-width="isActive(item.link) ? 2.5 : 2" 
+        />
+        <span class="nav-label">{{ item.name }}</span>
       </button>
-     </template> 
     </nav>
 
-    <div class="pt-4 border-t border-gray-50 space-y-1">
-      <button
-        v-for="item in footerItems"
-        :key="item.name"
-        :class="[
-          'w-full flex items-center gap-4 px-4 py-3 rounded-lg transition-colors',
-          item.variant === 'danger' 
-            ? 'text-red-500 hover:bg-red-50' 
-            : 'text-slate-500 hover:bg-slate-50'
-        ]"
-      >
-        <component :is="item.icon" :size="20" />
-        <span class="font-medium">{{ item.name }}</span>
+    <footer class="sidebar-footer">
+      <button @click="handleLogout" class="nav-link is-danger">
+        <LogOut class="nav-icon" />
+        <span class="nav-label">Logout</span>
       </button>
-    </div>
+    </footer>
   </aside>
 </template>
+
+<style src="./styles/sidebar.css" scoped></style>
