@@ -61,7 +61,6 @@ class Appointment(db.Model):
     type = db.Column(db.String(100), default="Consultation")
     status = db.Column(db.String(50), default="Pending")
     diagnosisTitle = db.Column(db.String(255), default="Pending Assessment")
-    diagnosisCode = db.Column(db.String(50), default="-")
     diagnosisDesc = db.Column(db.Text, default="Awaiting official notes.")
     patient = db.relationship('Patient', backref='appointments')
     doctor = db.relationship('Doctor', backref='appointments')
@@ -70,11 +69,10 @@ class MedicalRecord(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     patient_id = db.Column(db.Integer, db.ForeignKey('patient.id'))
     doctor_id = db.Column(db.Integer, db.ForeignKey('doctor.id'), nullable=True)
-    type = db.Column(db.String(100))
+    appointment_id = db.Column(db.Integer, db.ForeignKey('appointment.id'), nullable=True)
     date = db.Column(db.String(50))
     title = db.Column(db.String(200))
     description = db.Column(db.Text)
-    provider = db.Column(db.String(255))
 
 class Prescription(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -105,3 +103,5 @@ class Review(db.Model):
     rating = db.Column(db.Float)
     date = db.Column(db.String(50))
     comment = db.Column(db.Text)
+
+

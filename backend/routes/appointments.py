@@ -33,7 +33,6 @@ def create_appointment():
         type=data.get("type", "Consultation"),
         status="Pending",
         diagnosisTitle="Pending Assessment",
-        diagnosisCode="-",
         diagnosisDesc="Awaiting official notes."
     )
 
@@ -143,7 +142,6 @@ def bulk_appointments():
             status="Scheduled",
             type="Consultation",
             diagnosisTitle="Pending Assessment",
-            diagnosisCode="-",
             diagnosisDesc="Awaiting official notes."
         )
 

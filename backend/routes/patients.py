@@ -316,7 +316,6 @@ def appointment_details(apt_id):
         "doctorDepartment": doc_info.specialization if doc_info else "General",
         "doctorImage": doc_info.image_url if doc_info and doc_info.image_url else f"https://ui-avatars.com/api/?name={doc_info.name if doc_info else 'D'}",
         "diagnosisTitle": apt.diagnosisTitle,
-        "diagnosisCode": apt.diagnosisCode,
         "diagnosisStatus": apt.status,
         "diagnosisDesc": apt.diagnosisDesc
     }
@@ -358,8 +357,7 @@ def medical_history():
     if search:
         query = query.filter(db.or_(
             MedicalRecord.title.ilike(f"%{search}%"),
-            MedicalRecord.description.ilike(f"%{search}%"),
-            MedicalRecord.provider.ilike(f"%{search}%")
+            MedicalRecord.description.ilike(f"%{search}%")
         ))
         
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
@@ -368,24 +366,11 @@ def medical_history():
     for r in pagination.items:
         medicalRecords.append({
             "id": str(r.id),
-            "type": r.type,
-            "date": r.date.format() if r.date else None, 
+            "date": r.date, 
             "title": r.title,
             "description": r.description,
-            "provider": r.provider,
             "status": "Ready" 
         })
-        
-    global_total = MedicalRecord.query.filter_by(patient_id=user_id).count()
-    lab_tests_count = MedicalRecord.query.filter_by(patient_id=user_id, type="Lab Test").count()
-    encounters_count = MedicalRecord.query.filter_by(patient_id=user_id, type="Checkup Report").count()
-    
-    historyStats = [
-      {"label": 'Total Records', "value": str(global_total), "icon": '💼', "bgClass": 'bg-blue-50 text-blue-600'},
-      {"label": 'Lab Tests', "value": str(lab_tests_count), "icon": '🔬', "bgClass": 'bg-green-50 text-green-600'},
-      {"label": 'Checkups', "value": str(encounters_count), "icon": '🏥', "bgClass": 'bg-purple-50 text-purple-600'},
-      {"label": 'Archived', "value": '0', "icon": '📑', "bgClass": 'bg-orange-50 text-orange-600'}
-    ]
     
     return jsonify({
         "pagination": {
@@ -395,7 +380,6 @@ def medical_history():
             "total_pages": pagination.pages,
             "has_next": pagination.has_next 
         },
-        "historyStats": historyStats,
         "medicalRecords": medicalRecords
     })
 

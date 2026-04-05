@@ -250,12 +250,14 @@ def patient_profile(patient_id):
                 "duration": pr.duration
             })
             
-    recent_records = MedicalRecord.query.filter_by(patient_id=patient.id).order_by(MedicalRecord.id.desc()).limit(2).all()
+    all_records = MedicalRecord.query.filter_by(patient_id=patient.id).order_by(MedicalRecord.date.desc(), MedicalRecord.id.desc()).all()
     medical_records = [{
+        "id": mr.id,
         "date": mr.date,
         "title": mr.title,
-        "description": mr.description
-    } for mr in recent_records]
+        "description": mr.description,
+        "appointment_id": mr.appointment_id
+    } for mr in all_records]
         
     return jsonify({
         "_id": str(patient.id),
@@ -294,7 +296,7 @@ def update_condition(patient_id):
     data = request.json
     patient.condition = data.get("condition", "")
     db.session.commit()
-    return jsonify({"message": "Patient condition updated"})
+    return jsonify({"message": "Patient condition updated"},)
 
 
 
@@ -320,7 +322,7 @@ def add_prescription(apt_id):
     )
     db.session.add(p)
     db.session.commit()
-    return jsonify({"message": "Prescription added successfully"}), 201
+    return jsonify({"message": "Prescription added successfully"},{"id": p.id}), 201
 
 
 
@@ -343,7 +345,7 @@ def add_note(apt_id):
     )
     db.session.add(n)
     db.session.commit()
-    return jsonify({"message": "Note added successfully"}), 201
+    return jsonify({"message": "Note added successfully"},{"id": n.id}), 201
 
 
 
@@ -369,39 +371,54 @@ def add_vital(apt_id):
     )
     db.session.add(v)
     db.session.commit()
-    return jsonify({"message": "Vital added successfully"}), 201
+    return jsonify({"message": "Vital added successfully"},{"id": v.id}), 201
 
 
 
 
 # -----------------------------
-# Add Medical Record
+# Add Medical Record (Unified History/Timeline API)
 # -----------------------------
-@doctor_bp.route("/doctors/patient/<patient_id>/medical-record", methods=["POST"])
+@doctor_bp.route("/doctors/appointments/<apt_id>/medical-record", methods=["POST"])
 @jwt_required()
 @role_required("Doctor")
-def add_medical_record(patient_id):
+def add_medical_record(apt_id):
+    apt = Appointment.query.get(int(apt_id))
+    if not apt: 
+        return jsonify({"error": "Appointment not found"}), 404
+        
     doctor_id = int(get_jwt_identity())
     doctor = Doctor.query.get(doctor_id)
-
-    if patient_id.startswith("MR-"):
-        patient = Patient.query.filter_by(medical_id=patient_id).first()
-    else:
-        patient = Patient.query.get(int(patient_id))
-        
-    if not patient:
-        return jsonify({"error": "Patient not found"}), 404
-        
+    
     data = request.json
-    record = MedicalRecord(
-        patient_id=patient.id,
-        doctor_id=doctor.id,
-        type=data.get("type", "General Note"),
-        date=data.get("date", datetime.utcnow().strftime("%Y-%m-%d")),
-        title=data.get("title", f"{data.get('type', 'Medical')} Record"),
-        description=data.get("description", ""),
-        provider=f"Dr. {doctor.name}" if not doctor.name.startswith("Dr.") else doctor.name
-    )
-    db.session.add(record)
+    
+    record = MedicalRecord.query.filter_by(appointment_id=apt.id).first()
+    
+    title = data.get("title", f"Diagnosis: {data.get('primary_diagnosis', 'Medical Record')}")
+    description = data.get("description", data.get("symptoms", ""))
+    date_str = data.get("date", datetime.utcnow().strftime("%Y-%m-%d"))
+
+    if record:
+        record.title = title
+        record.description = description
+        record.date = date_str
+    else:
+        record = MedicalRecord(
+            patient_id=apt.patient_id,
+            doctor_id=doctor.id,
+            appointment_id=apt.id,
+            date=date_str,
+            title=title,
+            description=description
+        )
+        db.session.add(record)
+    
+    apt.diagnosisTitle = data.get("primary_diagnosis", title)
+    apt.diagnosisDesc = data.get("symptoms", description)
+        
     db.session.commit()
-    return jsonify({"message": "Medical record added successfully", "record_id": record.id}), 201
+    return jsonify({"message": "Medical history updated successfully", "record_id": record.id}), 201
+
+
+
+
