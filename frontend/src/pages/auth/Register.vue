@@ -17,7 +17,9 @@ const formData = ref({
     gender: '',
     mobile: '',
     email: '',
-    password: ''
+    password: '',
+    age: '',
+    role: 'Patient'
 })
 
 const handleSubmit = async () => {
@@ -37,7 +39,7 @@ const handleSubmit = async () => {
         await registerAPI(formData.value);
         alert("Registration Successful")
         router.push("/auth")
-    } catch(error) {
+    } catch (error) {
         alert(error.message || "Registration failed");
     } finally {
         loading.value = false
@@ -62,16 +64,25 @@ const handleSubmit = async () => {
                     </div>
                 </div>
 
-                <div class="form-group">
-                    <label class="label-text">Gender</label>
-                    <div class="relative-input">
-                        <select v-model="formData.gender" class="auth-input select-custom">
-                            <option value="" disabled>Select Gender</option>
-                            <option value="male">Male</option>
-                            <option value="female">Female</option>
-                            <option value="other">Other</option>
-                        </select>
-                        <ChevronDownIcon class="input-icon-right pointer-events-none" />
+                <div class="auth-input-grid">
+                    <div class="form-group">
+                        <label class="label-text">Gender</label>
+                        <div class="relative-input">
+                            <select v-model="formData.gender" class="auth-input select-custom">
+                                <option value="" disabled>Select Gender</option>
+                                <option value="male">Male</option>
+                                <option value="female">Female</option>
+                                <option value="other">Other</option>
+                            </select>
+                            <ChevronDownIcon class="input-icon-right pointer-events-none" />
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="label-text">Age</label>
+                        <div class="relative-input">
+                            <input v-model="formData.age" type="number" min="0" placeholder="e.g. 30"
+                                class="auth-input" />
+                        </div>
                     </div>
                 </div>
 
@@ -87,7 +98,8 @@ const handleSubmit = async () => {
                         <label class="label-text">Email Address</label>
                         <div class="relative-input">
                             <EnvelopeIcon class="input-icon-left" />
-                            <input v-model="formData.email" type="email" placeholder="john@example.com" class="auth-input" />
+                            <input v-model="formData.email" type="email" placeholder="john@example.com"
+                                class="auth-input" />
                         </div>
                     </div>
                 </div>
@@ -96,8 +108,8 @@ const handleSubmit = async () => {
                     <label class="label-text">Create Password</label>
                     <div class="relative-input">
                         <LockClosedIcon class="input-icon-left" />
-                        <input v-model="formData.password" :type="showPassword ? 'text' : 'password'" 
-                               placeholder="At least 8 characters" class="auth-input password-input" />
+                        <input v-model="formData.password" :type="showPassword ? 'text' : 'password'"
+                            placeholder="At least 8 characters" class="auth-input password-input" />
                         <button type="button" @click="showPassword = !showPassword" class="password-toggle">
                             <EyeIcon v-if="!showPassword" class="icon-sm" />
                             <EyeSlashIcon v-else class="icon-sm" />
@@ -109,7 +121,7 @@ const handleSubmit = async () => {
                     <input type="checkbox" v-model="isChecked" class="hidden-checkbox" />
                     <div class="custom-checkbox" :class="{ checked: isChecked }"></div>
                     <span class="consent-text">
-                        I agree to the <a href="#" class="auth-link">Terms of Service</a> and 
+                        I agree to the <a href="#" class="auth-link">Terms of Service</a> and
                         <a href="#" class="auth-link">Privacy Policy</a>, including HIPAA data handling.
                     </span>
                 </label>
@@ -121,7 +133,7 @@ const handleSubmit = async () => {
             </form>
 
             <p class="auth-footer-text">
-                Already have an account? 
+                Already have an account?
                 <router-link to="/auth" class="auth-link">Sign in here</router-link>
             </p>
         </div>

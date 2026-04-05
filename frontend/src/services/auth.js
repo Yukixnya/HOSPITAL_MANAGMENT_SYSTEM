@@ -11,7 +11,7 @@ export const loginAPI = async (credentials) => {
 
 export const registerAPI = async(userData) => {
     try{
-        const res = await API.post("/auth/register/patient", userData);
+        const res = await API.post("/auth/register", userData);
         return res.data;
     } catch(error) {
         throw new Error("Registration Failed");
