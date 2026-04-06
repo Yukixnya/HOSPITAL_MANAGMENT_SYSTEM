@@ -8,6 +8,9 @@ import {
 import { adminDashboard } from '../../services/admin';
 import StatCard from '../../components/StateCard.vue';
 import AppointmentTrendsChart from '../../components/AppointmentTrendsChart.vue';
+import { useToast } from 'vue-toastification';
+
+const toast = useToast();
 
 const dashboard = ref({ "patients": 0, "doctors": 0, "appointments": 0 });
 
@@ -20,7 +23,7 @@ const getAdminDashboard = async() => {
             "appointments": res.total_appointments
         };
     } catch (error) {
-        console.error("ADMINBOARD: ", error);
+        toast.error("Unable to fetch dashboard data.");
     }
 }
 

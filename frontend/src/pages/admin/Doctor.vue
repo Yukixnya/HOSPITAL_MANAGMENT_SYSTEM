@@ -10,6 +10,9 @@ import DialogueBox from '../../components/DialogueBox.vue'
 import { filterDoctors, updateDoc, updateDocStatus, getDoctors } from '../../services/admin'
 import { specializations } from '../../utils/DoctorSpecialization'
 import { schedules } from "../../utils/DoctorSchedule"
+import { useToast } from 'vue-toastification'
+
+const toast = useToast()
 
 // --- State Management ---
 const doctors = ref([])
@@ -39,7 +42,6 @@ const fetchDoctorList = async () => {
     }
 
     let res;
-    // Check if any filters are active
     const isFiltering = params.search || params.status || params.specialization;
 
     if (isFiltering) {
@@ -52,7 +54,7 @@ const fetchDoctorList = async () => {
     totalPages.value = res.total_pages || 1
     totalRecords.value = res.total || 0
   } catch (error) {
-    console.error("Error fetching doctors:", error.message)
+    toast.error("Failed to fetch doctor list.")
   } finally {
     isLoading.value = false
   }
@@ -71,7 +73,6 @@ onMounted(() => fetchDoctorList())
 // --- Actions ---
 const startEdit = (doc) => {
   editingId.value = doc._id
-  // Flattening nested data so v-model works easily
   editForm.value = { 
     ...doc, 
     name: doc.name || doc.user?.name || "" 
@@ -86,28 +87,27 @@ const cancelEdit = () => {
 const saveEdit = async () => {
   try {
     await updateDoc(editingId.value, editForm.value)
-    await fetchDoctorList() // Refresh to get updated nested user data
+    await fetchDoctorList() 
     cancelEdit()
   } catch (error) {
-    alert("Failed to save: " + error.message)
+    toast.error("Failed to save doctor details.")
   }
 }
 
 const updateStatus = async (doc, newStatus) => {
   try {
     await updateDocStatus(doc._id, newStatus);
-    // Locally update the status so the UI reflects change immediately
     doc.status = newStatus;
+    toast.success(`Status updated to ${newStatus} for Dr. ${doc.name || doc.user?.name}`)
   } catch (error) {
-    alert("Failed to update status: " + error.message)
+    toast.error("Failed to update status.")
   }
 }
 
 const deactive = async (name) => {
   const ok = await deactiveAcc.value.open(`Are you sure you want to deactivate Dr. ${name}?`)
   if (ok) {
-    // Add your logic to call deactivation API here
-    alert("Doctor has been deactivated")
+    toast.success("Doctor has been deactivated")
   }
 }
 

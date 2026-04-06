@@ -6,10 +6,13 @@ import {
   ClockIcon, ChevronRightIcon, SearchIcon, FilterIcon
 } from 'lucide-vue-next';
 import { getDoctorDashboard } from '../../services/doctor';
+import { useToast } from 'vue-toastification';
 
+const toast = useToast();
 const router = useRouter();
 const recentPatients = ref([]);
 const selectedDate = ref(new Date().toISOString().split('T')[0]);
+
 const dashboard = ref({
   "appointments": [],
   "pending_reports": 0,
@@ -17,7 +20,6 @@ const dashboard = ref({
   "total_patients": 0,
 });
 
-// Generate next 14 days for the scroller
 const dynamicDays = computed(() => {
   const days = [];
   const today = new Date();
@@ -33,7 +35,6 @@ const dynamicDays = computed(() => {
   return days;
 });
 
-// Filter appointments based on the selected date from the scroller
 const filteredAppointments = computed(() => {
   return dashboard.value.appointments
     .filter(appt => appt.date === selectedDate.value)
@@ -47,7 +48,9 @@ const doctorDashboard = async () => {
     const res = await getDoctorDashboard();
     recentPatients.value = res.recent_patients || [];
     dashboard.value = res;
-  } catch (error) { console.error(error); }
+  } catch (error) { 
+    toast.error('Failed to load dashboard data. Please try again later.');
+  } 
 };
 
 onMounted(doctorDashboard);
@@ -94,7 +97,7 @@ onMounted(doctorDashboard);
             <div class="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
               <button v-for="day in dynamicDays" :key="day.isoDate" @click="selectedDate = day.isoDate"
                 :class="selectedDate === day.isoDate ? 'bg-blue-600 text-white shadow-md shadow-blue-200' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'"
-                class="flex flex-col items-center justify-center min-w-[54px] h-16 rounded-2xl transition-all duration-200 shrink-0">
+                class="flex flex-col items-center justify-center min-w-13.5 h-16 rounded-2xl transition-all duration-200 shrink-0">
                 <span class="text-[10px] font-bold uppercase">{{ day.name }}</span>
                 <span class="text-lg font-black">{{ day.dateNum }}</span>
               </button>
@@ -106,7 +109,7 @@ onMounted(doctorDashboard);
               <div v-for="appt in filteredAppointments" :key="appt._id" @click="goToAppointment(appt._id)"
                 class="group flex items-center gap-6 p-4 rounded-2xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50/30 transition-all cursor-pointer">
                 <div
-                  class="flex flex-col items-center justify-center min-w-[70px] py-2 border-r border-slate-100 group-hover:border-blue-100">
+                  class="flex flex-col items-center justify-center min-w-17.5 py-2 border-r border-slate-100 group-hover:border-blue-100">
                   <span class="text-sm font-bold text-slate-900">{{ appt.time }}</span>
                   <span class="text-[10px] font-medium text-slate-400 uppercase tracking-tighter">Start</span>
                 </div>

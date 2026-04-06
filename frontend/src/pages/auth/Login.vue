@@ -10,6 +10,9 @@ import {
 } from '@heroicons/vue/24/outline'
 import { loginAPI } from '../../services/auth'
 import { useUserStore } from '../../store/userStore'
+import { useToast } from "vue-toastification";
+
+const toast = useToast()
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -30,10 +33,10 @@ const handleLogin = async () => {
 
         userStore.setUser(data.user, data.token)
         const role = data.user.role.toLowerCase(); 
+        toast.success(`Welcome back, ${data.user.name}!`)
         router.push(`/${role}`);
-
     } catch (error) {
-        alert("Login failed. Please check your credentials.")
+        toast.error("Login failed. Please check your credentials.")
         console.error(error)
     } finally {
         loading.value = false

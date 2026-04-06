@@ -1,11 +1,12 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from "vue-router";
-// Replace with your actual service imports
 import { getDocDetails, bookAppointment, addReview } from '../../services/patient';
 import { Plus } from 'lucide-vue-next';
 import  ReviewModal from '../../components/ReviewModal.vue';
+import { useToast } from 'vue-toastification';
 
+const toast = useToast();
 const route = useRoute();
 
 // --- State ---
@@ -31,7 +32,7 @@ const getDoc = async () => {
     doctor.value = res.doctor;
     reviews.value = res.reviews || [];
   } catch (error) {
-    console.error('Error fetching doctor data:', error);
+    toast.error('Failed to fetch doctor details.');
   } finally {
     isLoadingPage.value = false;
   }
@@ -67,14 +68,12 @@ const handleBooking = async () => {
   try {
     isBooking.value = true;
 
-    // 1. Convert "10:30 AM" to 24-hour format "10:30"
     const [time, modifier] = selectedSlot.value.split(' ');
     let [hours, minutes] = time.split(':');
     if (hours === '12') hours = '00';
     if (modifier === 'PM') hours = parseInt(hours, 10) + 12;
     const time24 = `${hours.toString().padStart(2, '0')}:${minutes}`;
 
-    // 2. Format: "YYYY-MM-DDTHH:MM" for Flask strptime
     const appointmentDateTime = `${selectedDate.value}T${time24}`;
 
     const payload = {
@@ -84,14 +83,9 @@ const handleBooking = async () => {
     };
 
     const res = await bookAppointment(payload);
-
-    alert(res.message || "Appointment booked successfully!");
-    // refresh();
-
+    toast.success("Appointment booked successfully!");
   } catch (error) {
-    console.error('Booking error:', error.response?.data?.error);
-    const errorMsg = error.response?.data?.error || "Booking failed. Please try again.";
-    alert(errorMsg);
+    toast.error("Booking failed. Please try again.");
   } finally {
     isBooking.value = false;
   }
@@ -105,11 +99,11 @@ const handleReviewSubmit = async (reviewData) => {
     submitting.value = true;
     
     await addReview(id.value, reviewData);
-    alert("Review added successfully!");
+    toast.success("Review added successfully!");
     await getDoc();
     isReviewModalOpen.value = false;
   } catch (e) {
-    alert("Error saving review");
+    toast.error("Error saving review");
   } finally {
     submitting.value = false;
   }

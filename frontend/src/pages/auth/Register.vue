@@ -6,6 +6,9 @@ import {
     UserIcon, PhoneIcon, EnvelopeIcon,
     LockClosedIcon, EyeIcon, EyeSlashIcon, UserPlusIcon, ChevronDownIcon
 } from '@heroicons/vue/24/outline'
+import { useToast } from 'vue-toastification'
+
+const toast = useToast()
 
 const router = useRouter()
 const isChecked = ref(false)
@@ -26,21 +29,21 @@ const handleSubmit = async () => {
     // Basic validation
     const { name, gender, mobile, email, password } = formData.value;
     if (!name || !gender || !mobile || !email || !password) {
-        alert('Please fill in all required fields.')
+        toast.error('Please fill in all required fields.')
         return
     }
     if (!isChecked.value) {
-        alert('You must agree to the Terms of Service to register.')
+        toast.error('You must agree to the Terms of Service to register.')
         return
     }
 
     try {
         loading.value = true
         await registerAPI(formData.value);
-        alert("Registration Successful")
+        toast.success("Registration Successful")
         router.push("/auth")
     } catch (error) {
-        alert(error.message || "Registration failed");
+        toast.error("Registration failed");
     } finally {
         loading.value = false
     }

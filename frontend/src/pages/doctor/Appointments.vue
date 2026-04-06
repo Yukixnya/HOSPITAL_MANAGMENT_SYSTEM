@@ -1,12 +1,14 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
 import {
-  CalendarIcon, HistoryIcon,
+  HistoryIcon,
   StethoscopeIcon, CheckCircleIcon, XCircleIcon, SearchIcon
 } from 'lucide-vue-next';
 import { useRouter } from 'vue-router';
 import { confirmAppointment, getAppointments, cancelAppointment } from '../../services/doctor';
+import { useToast } from 'vue-toastification';
 
+const toast = useToast();
 const router = useRouter();
 
 // --- State ---
@@ -16,14 +18,11 @@ const currentPage = ref(1);
 const totalPages = ref(1);
 const totalRecords = ref(0);
 
-// --- New Filter State ---
 const filterStatus = ref('All');
 const searchQuery = ref('');
 
-// Helper to get today's date in YYYY-MM-DD format (adjust if your API format differs)
 const todayDate = new Date().toISOString().split('T')[0];
 
-// --- API Fetching ---
 const fetchAppointments = async () => {
   loading.value = true;
   try {
@@ -39,7 +38,7 @@ const fetchAppointments = async () => {
       totalRecords.value = res.pagination.total_items || 0;
     }
   } catch (error) {
-    console.error("Fetch Error:", error);
+    toast.error('Failed to load appointments. Please try again later.');
   } finally {
     loading.value = false;
   }
@@ -62,7 +61,6 @@ const goToPage = (p) => {
   }
 };
 
-// Smart Pagination Logic: [1, 2, 3, '...', 12]
 const displayedPages = computed(() => {
   const current = currentPage.value;
   const last = totalPages.value;
@@ -97,20 +95,20 @@ const displayedPages = computed(() => {
 const handleConfirm = async (id) => {
   try {
     await confirmAppointment(id);
-    alert("Appointment confirmed successfully!");
+    toast.success("Appointment confirmed successfully!");
     await fetchAppointments();
   } catch (error) {
-    console.error("Confirmation Error:", error);
+    toast.error("Failed to confirm appointment.");
   }
 };
 
 const handleDecline = async (id) => {
   try {
     await cancelAppointment(id);
-    alert("Appointment cancelled successfully!");
+    toast.success("Appointment cancelled successfully!");
     await fetchAppointments();
   } catch (error) {
-    console.error("Cancellation Error:", error.message);
+    toast.error("Failed to cancel appointment.");
   }
 };
 

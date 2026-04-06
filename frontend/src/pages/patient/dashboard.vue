@@ -4,7 +4,9 @@ import { useRouter } from 'vue-router';
 import { getDashDetails } from '../../services/patient';
 import { computed, onMounted, ref } from 'vue';
 import { useUserStore } from '../../store/userStore';
+import { useToast } from 'vue-toastification';
 
+const toast = useToast();
 const router = useRouter();
 const userStore = useUserStore();
 
@@ -17,7 +19,7 @@ const getDetails = async () => {
     next_appointment.value = data.nextAppointment;
     vitals.value = data.vitals;
   } catch (error) {
-    console.error('Error fetching dashboard details:', error);
+    toast.error('Failed to fetch dashboard details.');
   }
 };
 

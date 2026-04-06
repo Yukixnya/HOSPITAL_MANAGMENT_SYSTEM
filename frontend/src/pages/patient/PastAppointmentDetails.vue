@@ -2,7 +2,9 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { getAppointmentDetails } from '../../services/patient';
+import { useToast } from 'vue-toastification';
 
+const toast = useToast();
 const router = useRouter();
 const id = router.currentRoute.value.params.id;
 
@@ -23,7 +25,7 @@ const getVisitDetails = async () => {
         visitVitals.value = res.visitVitals || [];
         
     } catch (error) {
-        console.error('Error fetching visit details:', error);
+        toast.error("Failed to fetch appointment details.");
     } finally {
         isLoading.value = false;
     }

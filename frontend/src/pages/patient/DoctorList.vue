@@ -2,7 +2,9 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { getDoctors } from '../../services/patient';
+import { useToast } from 'vue-toastification';
 
+const toast = useToast();
 const router = useRouter();
 const doctors = ref([]);
 const currentPage = ref(1);
@@ -18,12 +20,11 @@ const getDocDetails = async () => {
       search: searchQuery.value || undefined
     };
     const res = await getDoctors(params);
-    console.log('Doctor List Response:', res);
     doctors.value = res.data || [];
     totalPages.value = res.pagination?.total_pages || 1;
     totalRecords.value = res.pagination?.total_items || 0;
   } catch (error) {
-    console.error('Error fetching doctor details:', error);
+    toast.error('Failed to fetch doctor details.');
   }
 };
 
@@ -51,7 +52,6 @@ const goToPage = (p) => {
   }
 };
 
-// Smart Pagination Logic: [1, 2, 3, '...', 12]
 const displayedPages = computed(() => {
   const current = currentPage.value;
   const last = totalPages.value;

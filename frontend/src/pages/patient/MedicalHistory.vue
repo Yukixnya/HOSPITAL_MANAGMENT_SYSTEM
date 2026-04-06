@@ -2,7 +2,9 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { medHistory } from '../../services/patient';
+import { useToast } from 'vue-toastification';
 
+const toast = useToast();
 const router = useRouter();
 
 const historyStats = ref([]);
@@ -50,7 +52,7 @@ const fetchHistory = async (page = 1) => {
     medicalRecords.value = [...medicalRecords.value, ...newRecords];
 
   } catch (error) {
-    console.error("Medical history fetch error:", error);
+    toast.error("Failed to fetch medical history.");
   } finally {
     isLoading.value = false;
     isFetchingMore.value = false;

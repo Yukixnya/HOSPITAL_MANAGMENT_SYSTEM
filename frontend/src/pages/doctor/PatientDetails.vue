@@ -5,10 +5,11 @@ import {
   HistoryIcon, StethoscopeIcon, SyringeIcon, ScanIcon, PlusSquareIcon,
   ChevronRightIcon, DropletsIcon, UserIcon
 } from 'lucide-vue-next';
-
 import { useRoute } from "vue-router";
 import { getPatientById } from '../../services/doctor';
+import { useToast } from 'vue-toastification';
 
+const toast = useToast();
 const route = useRoute();
 const loading = ref(true);
 const medications = ref([]);
@@ -50,7 +51,7 @@ const getPatient = async () => {
       iconBg: getBgForType(record.type)
     }));
   } catch (error) {
-    console.error("Failed to fetch patient data:", error);
+    toast.error('Failed to fetch patient data. Please try again later.');
   } finally {
     loading.value = false;
   }

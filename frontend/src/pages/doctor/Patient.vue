@@ -5,7 +5,9 @@ import {
     MoreVerticalIcon, ChevronLeftIcon, ChevronRightIcon 
 } from 'lucide-vue-next';
 import { getPatients } from '../../services/doctor';
+import { useToast } from 'vue-toastification';
 
+const toast = useToast();
 const patients = ref([]);
 const currentPage = ref(1);
 const totalPages = ref(1);
@@ -31,7 +33,7 @@ const getPatientsDetails = async () => {
         totalPages.value = res.pagination?.total_pages || 1;
         totalRecords.value = res.pagination?.total_items || 0;
     } catch (error) {
-        console.error("Patients fetch error:", error);
+        toast.error('Failed to fetch patient data. Please try again later.');
     } finally {
         isLoading.value = false;
     }

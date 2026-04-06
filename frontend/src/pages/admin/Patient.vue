@@ -4,6 +4,9 @@ import {
   Search, ChevronLeft, ChevronRight, Loader2
 } from 'lucide-vue-next';
 import { getPatients } from '../../services/admin';
+import { useToast } from 'vue-toastification';
+
+const toast = useToast();
 
 // --- State Management ---
 const patients = ref([]);
@@ -27,7 +30,7 @@ const getAllPatients = async () => {
     totalRecords.value = res.total || 0;
     totalPages.value = res.total_pages || 1;
   } catch (error) {
-    console.error("Fetch error:", error.message);
+    toast.error("Failed to load patients. Please try again.");
   } finally {
     isLoading.value = false;
   }

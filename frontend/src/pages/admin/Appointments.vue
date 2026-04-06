@@ -5,6 +5,9 @@ import {
   Search, User, Activity, X, Loader2
 } from 'lucide-vue-next';
 import { getAppointment, getDoctorList } from '../../services/admin';
+import { useToast } from 'vue-toastification';
+
+const toast = useToast();
 
 // --- State Management ---
 const currentView = ref('table');
@@ -41,7 +44,7 @@ const fetchAppointments = async () => {
     totalPages.value = res.total_pages || 1;
     appointments.value = res.data || [];
   } catch (error) {
-    console.error("Fetch error:", error.message);
+    toast.error("Failed to load appointments. Please try again.");
   } finally {
     isLoading.value = false;
   }
@@ -53,7 +56,7 @@ const fetchDoctor = async () => {
     const res = await getDoctorList();
     doctorNameList.value = res.data || [];
   } catch (error) {
-    console.error("Doctor Fetch error:", error.message);
+    toast.error("Failed to fetch doctor list.");
   } finally {
     loadDoctor.value = false;
   }

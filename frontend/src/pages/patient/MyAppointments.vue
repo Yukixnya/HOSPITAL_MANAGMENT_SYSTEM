@@ -4,7 +4,9 @@ import { useRouter } from 'vue-router';
 import DialogueBox from '../../components/DialogueBox.vue';
 import RescheduleModal from '../../components/RescheduleModal.vue';
 import { cancelAppointment, myAppointments, rescheduleAppointment } from '../../services/patient';
+import { useToast } from 'vue-toastification';
 
+const toast = useToast();
 const router = useRouter();
 
 // State
@@ -53,8 +55,6 @@ const getAppointmentsDetails = async () => {
 
     upcomingAppointments.value = (data.upcomingAppointments || []).map(apt => ({
       ...apt,
-      // IMPORTANT: Ensure 'date' here matches 'YYYY-MM-DD' format for the block to work
-      // If your API returns "2026-04-10T10:00:00", use apt.date.split('T')[0]
       date: apt.date,
       statusClass: getStatusClass(apt.status)
     }));
@@ -63,7 +63,7 @@ const getAppointmentsDetails = async () => {
     pastVisits.value = allVisites.value ? fullHistory : fullHistory.slice(0, 3);
     totalRecords.value = data.pagination?.total_items || 0;
   } catch (error) {
-    console.error('Error:', error);
+    toast.error("Failed to fetch appointments.");
   }
 };
 
@@ -75,11 +75,11 @@ const openReschedule = (apt) => {
 const processReschedule = async (newData) => {
   try {
     const res = await rescheduleAppointment(activeAppointment.value.id, newData);
-    alert(res.message || "Appointment rescheduled successfully!");
+    toast.success("Appointment rescheduled successfully!");
     isRescheduleOpen.value = false;
     await getAppointmentsDetails();
   } catch (error) {
-    alert("Could not reschedule. Please try again.");
+    toast.error("Could not reschedule. Please try again.");
   }
 };
 

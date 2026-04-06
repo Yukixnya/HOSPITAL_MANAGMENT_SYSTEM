@@ -12,7 +12,9 @@ import {
 import AddmedicationModal from '../../components/AddmedicationModal.vue';
 import { addMedicalRecord, addNotes, addVitals, addPrescription, getAppointmentReport } from '../../services/doctor';
 import { useRoute, useRouter } from 'vue-router';
+import { useToast } from 'vue-toastification';
 
+const toast = useToast();
 const route = useRoute();
 const router = useRouter();
 const id = computed(() => route.params.id || route.path.split("/").pop());
@@ -54,7 +56,7 @@ const fetchReport = async () => {
             time: report.date ? formattedTime(report.date) : "10:30 AM"
         };
     } catch (error) {
-        console.error('Error fetching appointment report:', error);
+        toast.error('Failed to fetch appointment report. Please try again later.');
     } finally {
         loading.value = false;
     }
@@ -132,12 +134,11 @@ const handleSave = async () => {
             note_ids: [noteId],
         });
 
-        alert("Consultation saved successfully!");
+        toast.success("Consultation saved successfully!");
         router.push("/doctor/appointments");
 
     } catch (error) {
-        console.error("Error saving consultation:", error);
-        alert("Failed to save consultation.");
+        toast.error("Failed to save consultation.");
     } finally {
         isSaving.value = false;
     }
@@ -275,7 +276,7 @@ onMounted(fetchReport);
                         <h2 class="text-sm font-black text-slate-400 uppercase tracking-widest mb-6">Clinical Notes</h2>
                         <div class="bg-slate-50/50 rounded-2xl p-4 border border-slate-100 focus-within:ring-2 focus-within:ring-blue-50 transition-all">
                             <textarea v-model="diagnosis.notes"
-                                class="w-full bg-transparent border-none focus:ring-0 text-slate-700 placeholder:text-slate-400 leading-relaxed resize-none min-h-[200px] outline-none text-sm"
+                                class="w-full bg-transparent border-none focus:ring-0 text-slate-700 placeholder:text-slate-400 leading-relaxed resize-none min-h-50 outline-none text-sm"
                                 placeholder="Start typing internal notes..."></textarea>
                         </div>
                     </div>
