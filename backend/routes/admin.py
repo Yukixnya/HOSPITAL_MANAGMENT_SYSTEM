@@ -1,16 +1,13 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, json, request, jsonify
 from flask_jwt_extended import jwt_required
 from werkzeug.security import generate_password_hash
-from utils import role_required, get_next_doctor_id
+from utils import role_required, get_next_doctor_id, cache_get, cache_set, cache_delete, cache_delete_pattern, cache_flush
 from datetime import datetime, timedelta
 import math
 from extensions import db
 from models import Doctor, Patient, Appointment
 
 admin_bp = Blueprint("admin", __name__)
-
-
-
 
 # -----------------------------
 # Get Stats
@@ -19,6 +16,13 @@ admin_bp = Blueprint("admin", __name__)
 @jwt_required()
 @role_required("Admin")
 def stats():
+
+    cache_key = "admin:dashboard"
+
+    cached = cache_get(cache_key)
+    if cached:
+        return jsonify(cached), 200
+    
     total = Doctor.query.count()
     active = Doctor.query.filter_by(status="Active").count()
     inactive = Doctor.query.filter_by(status="Inactive").count()
@@ -26,18 +30,18 @@ def stats():
     patients = Patient.query.count()
     appointments = Appointment.query.count()
 
-    return jsonify({
+    data = {
         "total_doctors": total,
         "total_active_doctors": active,
         "total_inactive_doctors": inactive,
         "total_onleave_doctors": on_leave,
         "total_patients": patients,
         "total_appointments": appointments
-    }), 200
+    }
 
+    cache_set(cache_key, data, ttl=60)
 
-
-
+    return jsonify(data), 200
 
 # -----------------------------
 # Add Doctor
@@ -102,11 +106,6 @@ def bulk_add_doctor():
         "message": "Doctors registered",
         "count": len(data)
     }), 201
-# ---------------------------------------------------------------------
-
-
-
-
 
 # -----------------------------
 # Get All Doctors
@@ -119,6 +118,12 @@ def get_all_doctors():
     page = int(request.args.get("page", 1))
     per_page = 10
     search = request.args.get("search")
+
+    cache_key = f"admin:doctors:{page}:{search}"
+
+    cached = cache_get(cache_key)
+    if cached:
+        return jsonify(cached), 200
 
     query = Doctor.query
     if search:
@@ -146,16 +151,17 @@ def get_all_doctors():
             "image": d.image_url if d.image_url else f"https://ui-avatars.com/api/?name={d.name}"
         })
 
-    return jsonify({
+    data = {
         "page": page,
         "per_page": per_page,
         "total": pagination.total,
         "total_pages": pagination.pages,
         "data": doctors
-    })
+    }
 
+    cache_set(cache_key, data, ttl=60)
 
-
+    return jsonify(data), 200
 
 # -----------------------------
 # Fetch List of Doctor's Name
@@ -164,6 +170,13 @@ def get_all_doctors():
 @jwt_required()
 @role_required("Admin")
 def get_doctors_name():
+
+    cached_key = "admin:doctors_list"
+
+    cached = cache_get(cached_key)
+    if cached:
+        return jsonify({"data": cached}), 200
+
     doctors = Doctor.query.with_entities(Doctor.id, Doctor.name).all()
 
     result = []
@@ -172,6 +185,8 @@ def get_doctors_name():
             "id": str(d.id),
             "name": d.name
         })
+
+    cache_set(cached_key, result, ttl=300)
 
     return jsonify({
         "data": result
@@ -269,11 +284,11 @@ def update_doctor_status(doctor_id):
         db.session.commit()
     else:
         return jsonify({"error": "Doctor not found"}), 404
+    
+    cache_delete("admin:doctors_list")
+    cache_delete_pattern("admin:doctors:*")
 
     return jsonify({"message": "Status updated"})
-
-
-
 
 # -----------------------------
 # Update Doctor Profile
@@ -300,11 +315,11 @@ def update_doctor(doctor_id):
         db.session.commit()
     else:
         return jsonify({"error": "Doctor not found"}), 404
+    
+    cache_delete("admin:doctors_list")
+    cache_delete_pattern("admin:doctors:*")
 
     return jsonify({"message": "Doctor updated"})
-
-
-
 
 # -----------------------------
 # Soft Delete Doctor
@@ -323,11 +338,11 @@ def delete_doctor(doctor_id):
         
     doctor.status = "Inactive"
     db.session.commit()
+
+    cache_delete("admin:doctors_list")
+    cache_delete_pattern("admin:doctors:*")
     
     return jsonify({"message": "Doctor deactivated"})
-
-
-
 
 #---------------------------------
 # Get All Patients
@@ -340,6 +355,11 @@ def get_patients():
     page = int(request.args.get("page", 1))
     per_page = 10
     search = request.args.get("search")
+
+    cached_key = f"admin:patients:{page}:{search}"
+    cached = cache_get(cached_key)
+    if cached:
+        return jsonify(cached), 200
 
     query = Patient.query
     if search:
@@ -365,16 +385,17 @@ def get_patients():
             "last_visit": p.last_visit.strftime("%b %d, %Y") if p.last_visit else None
         })
 
-    return jsonify({
+    data = {
         "page": page,
         "per_page": per_page,
         "total": pagination.total,
         "total_pages": pagination.pages,
         "data": patients
-    })
+    }
 
+    cache_set(cached_key, data, ttl=300)
 
-
+    return jsonify(data), 200
 
 #---------------------------------
 # Get All Appointments
@@ -390,6 +411,12 @@ def get_appointments():
     doctor_id = request.args.get("doctor", type=str)
     start = request.args.get("start")
     end = request.args.get("end")
+
+    cache_key = f"admin:appointments:{page}:{limit}:{search}:{doctor_id}:{start}:{end}"
+
+    cached = cache_get(cache_key)
+    if cached:
+        return jsonify(cached), 200
 
     query = Appointment.query.join(Patient).join(Doctor)
 
@@ -408,7 +435,7 @@ def get_appointments():
         query = query.filter(Appointment.doctor_id == int(doctor_id))
 
     pagination = query.order_by(Appointment.date.asc()).paginate(page=page, per_page=limit, error_out=False)
-    
+
     appointments = []
     for a in pagination.items:
         appointments.append({
@@ -423,14 +450,13 @@ def get_appointments():
             "department": a.doctor.specialization
         })
 
-    return jsonify({
+    data = {
         "data": appointments,
         "total": pagination.total,
         "total_pages": pagination.pages
-    })
+    }
 
-
-
+    return jsonify(data), 200
 
 # ---------------------------------
 #  Appointment Trend
@@ -467,3 +493,17 @@ def appointment_trend():
         })
 
     return jsonify(data)
+
+
+# ---------------------------------
+#  Flush All Cache  (Admin only)
+# ---------------------------------
+@admin_bp.route("/admin/cache/flush", methods=["DELETE"])
+@jwt_required()
+@role_required("Admin")
+def flush_cache():
+    """Wipe every key in the Redis DB. Use with care — all cached data is lost."""
+    success = cache_flush()
+    if success:
+        return jsonify({"message": "Redis cache flushed successfully"}), 200
+    return jsonify({"error": "Failed to flush Redis cache"}), 500
